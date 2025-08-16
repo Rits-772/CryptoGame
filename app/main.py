@@ -1,4 +1,4 @@
-# --- CryptoGame Main App ---
+# --- CryptoGame Main App (Enhanced) ---
 from data_fetcher import getStockPrice
 import streamlit as st
 import pandas as pd
@@ -10,6 +10,134 @@ import datetime
 import achievements as achievements
 import store as store
 import json
+import time
+from typing import Dict, List
+
+# =============================
+# Config & Helpers (NEW)
+# =============================
+PRICE_FILE = os.path.join("data", "prices.csv")
+REFRESH_HOURS = 12  # cache refresh twice a day
+REFRESH_INTERVAL = REFRESH_HOURS * 60 * 60
+
+# Simple emoji-based UI messages (replace raw warnings/infos)
+EMOJI_PREFIX = {
+    "info": "ℹ️ ",
+    "success": "✅ ",
+    "warning": "⚠️ ",
+    "error": "❌ ",
+}
+
+def ui_msg(kind: str, text: str):
+    prefix = EMOJI_PREFIX.get(kind, "")
+    st.markdown(f"{prefix}{text}")
+
+
+def normalize_close_df(close_obj, symbols: List[str]) -> pd.DataFrame:
+    """Ensure we always return a DataFrame with columns for each symbol.
+    yf.download returns:
+      - DataFrame with MultiIndex columns for multiple tickers
+      - Series for a single ticker
+    """
+    if isinstance(close_obj, pd.Series):
+        df = close_obj.to_frame(name=symbols[0])
+    else:
+        # Could be MultiIndex (ticker -> Close) or flat
+        df = close_obj.copy()
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+    # Keep only requested symbols that exist
+    cols = [c for c in symbols if c in df.columns]
+    return df[cols]
+
+
+def load_price_cache(symbols: List[str], period: str = "6mo") -> pd.DataFrame:
+    """Load cached Close prices for symbols; refresh if older than REFRESH_INTERVAL."""
+    # If cache exists & fresh: load and return
+    if os.path.exists(PRICE_FILE):
+        try:
+            modified_time = os.path.getmtime(PRICE_FILE)
+            if time.time() - modified_time < REFRESH_INTERVAL:
+                cached = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
+                # ensure we only return requested symbols that are in cache
+                return cached[[c for c in symbols if c in cached.columns]]
+        except Exception:
+            pass
+
+    # Otherwise fetch fresh data (single batched call where possible)
+    try:
+        data = yf.download(symbols, period=period, auto_adjust=False, threads=True)
+        close = data["Close"] if "Close" in data else data  # if single series
+        df = normalize_close_df(close, symbols)
+        # Persist superset (merge with existing if present)
+        if os.path.exists(PRICE_FILE):
+            try:
+                old = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
+                df = old.combine_first(df).join(df, how="outer", rsuffix="_new")
+                # prefer newer columns without suffix
+                for col in list(df.columns):
+                    if col.endswith("_new"):
+                        base = col[:-4]
+                        df[base] = df[col].combine_first(df.get(base))
+                        df.drop(columns=[col], inplace=True)
+            except Exception:
+                pass
+        df.sort_index(inplace=True)
+        df.to_csv(PRICE_FILE)
+        return df[[c for c in symbols if c in df.columns]]
+    except Exception:
+        # final fallback: if cache exists, return whatever we have
+        if os.path.exists(PRICE_FILE):
+            try:
+                cached = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
+                return cached[[c for c in symbols if c in cached.columns]]
+            except Exception:
+                pass
+        # nothing
+        return pd.DataFrame()
+
+
+def latest_price_from_cache(symbol: str, prices_df: pd.DataFrame) -> float:
+    try:
+        if symbol in prices_df.columns and not prices_df[symbol].dropna().empty:
+            return float(prices_df[symbol].dropna().iloc[-1])
+    except Exception:
+        pass
+    return None
+
+
+# Optional: lightweight logo fetch helper (best-effort)
+SYMBOL_TO_DOMAIN = {
+    # US Tech
+    "AAPL": "apple.com", "GOOGL": "abc.xyz", "AMZN": "amazon.com", "MSFT": "microsoft.com",
+    "TSLA": "tesla.com", "NFLX": "netflix.com", "META": "meta.com", "NVDA": "nvidia.com",
+    "BRK-B": "berkshirehathaway.com", "V": "visa.com",
+    # India (best-guess primary domains)
+    "INFY.NS": "infosys.com", "TCS.NS": "tcs.com", "HDFCBANK.NS": "hdfcbank.com",
+    "RELIANCE.NS": "ril.com", "ICICIBANK.NS": "icicibank.com", "SBIN.NS": "sbi.co.in",
+    "KOTAKBANK.NS": "kotak.com", "AXISBANK.NS": "axisbank.com", "LT.NS": "larsentoubro.com",
+    "ITC.NS": "itcportal.com", "BAJFINANCE.NS": "bajajfinserv.in", "SUNPHARMA.NS": "sunpharma.com",
+    "MARUTI.NS": "marutisuzuki.com", "TITAN.NS": "titan.co.in", "ONGC.NS": "ongcindia.com",
+    "HCLTECH.NS": "hcltech.com", "ULTRACEMCO.NS": "ultratechcement.com", "ASIANPAINTS.NS": "asianpaints.com",
+}
+
+@st.cache_data(ttl=6*60*60)
+def logo_url_for(symbol: str) -> str:
+    # First try yfinance info (may be missing)
+    try:
+        info = yf.Ticker(symbol).info
+        if isinstance(info, dict):
+            logo = info.get("logo_url")
+            if logo:
+                return logo
+    except Exception:
+        pass
+    # Fallback to Clearbit (will 404 for unknown domains; Streamlit will ignore)
+    domain = SYMBOL_TO_DOMAIN.get(symbol)
+    if domain:
+        return f"https://logo.clearbit.com/{domain}"
+    return None
+
 
 # --- User Login & Persistent Balance ---
 USER_DATA_FILE = os.path.join("data", "users.csv")
@@ -22,6 +150,7 @@ def load_user_data(name):
             return float(user.iloc[0]['balance'])
     return None
 
+
 def save_user_data(name, balance):
     if os.path.exists(USER_DATA_FILE):
         df = pd.read_csv(USER_DATA_FILE)
@@ -32,6 +161,7 @@ def save_user_data(name, balance):
     else:
         df = pd.DataFrame([{'name': name, 'balance': balance}])
     df.to_csv(USER_DATA_FILE, index=False)
+
 
 if 'player_name' not in st.session_state:
     st.session_state['player_name'] = ""
@@ -59,6 +189,7 @@ st.set_page_config(page_title="Stock Portfolio Game", layout="wide")
 if 'notifications' not in st.session_state:
     st.session_state['notifications'] = []
 
+
 def add_notification(msg, type_="info"):
     st.session_state['notifications'].append({
         'type': type_,
@@ -78,7 +209,7 @@ available_stocks = [
     # More US Stocks
     "JPM", "BAC", "WMT", "DIS", "PEP", "KO", "MCD", "CSCO", "ORCL", "INTC", "ADBE", "CRM", "PYPL", "ABNB", "AMD", "QCOM", "SBUX", "COST", "PFE", "MRK",
     # More Indian Stocks
-    "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS", "LT.NS", "ITC.NS", "BAJFINANCE.NS", "SUNPHARMA.NS", "MARUTI.NS", "TITAN.NS", "ONGC.NS", "HCLTECH.NS", "ULTRACEMCO.NS", "ASIANPAINT.NS"
+    "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS", "LT.NS", "ITC.NS", "BAJFINANCE.NS", "SUNPHARMA.NS", "MARUTI.NS", "TITAN.NS", "ONGC.NS", "HCLTECH.NS", "ULTRACEMCO.NS", "ASIANPAINTS.NS"
 ]
 
 sidebar_icons = [
@@ -102,11 +233,17 @@ menu = st.session_state['sidebar_nav']
 
 
 # --- Per-user portfolio and history paths ---
+
 def get_portfolio_path():
     return os.path.join("data", f"Portfolio_{st.session_state['player_name']}.csv")
 
+
 def get_portfolio_history_path():
     return os.path.join("data", f"portfolio_history_{st.session_state['player_name']}.csv")
+
+
+# Preload cached prices once per page render (fast thereafter)
+prices_df = load_price_cache(available_stocks, period="6mo")
 
 
 if menu == "Home":
@@ -118,17 +255,23 @@ if menu == "Home":
     active_rewards = store.get_active_rewards(st.session_state['player_name'])
     theme_id = active_rewards.get("theme")
     if theme_id == "theme_dark":
-        st.markdown("""
+        st.markdown(
+            """
             <style>
             body, .stApp { background-color: #181818 !important; color: #f0f0f0 !important; }
             </style>
-        """, unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True,
+        )
     elif theme_id == "theme_light":
-        st.markdown("""
+        st.markdown(
+            """
             <style>
             body, .stApp { background-color: #f8f8f8 !important; color: #222 !important; }
             </style>
-        """, unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True,
+        )
 
     # 💰 Display Current Balance (persistent per user)
     balance = st.session_state['balance']
@@ -142,69 +285,68 @@ if menu == "Home":
             st.sidebar.markdown(f"🏅 **{badge_name}**")
     st.metric(label="💰 Available Cash", value=f"₹{balance:,.2f}")
 
-    #-------Market Watch Section-------
-    # Create two columns
-    left_col, right_col = st.columns([1, 1])  # Ratio 1:2 for more space for the graph
-    stock_data = []
-    livePrice = {}
-
-    @st.cache_data(ttl=300)
-    def get_all_prices(symbols):
-        prices = {}
-        for symbol in symbols:
-            price = getStockPrice(symbol)
-            if price is not None:
-                prices[symbol] = price
-        return prices
+    # ------- Market Watch Section -------
+    left_col, right_col = st.columns([1, 1])
 
     with left_col:
         st.subheader("📃 Available Stocks")
-        cols = st.columns([2, 1])  # Table header
-        cols[0].write("**Stock**")
-        cols[1].write("**Price (INR)**")
+        header_cols = st.columns([2, 1, 1])
+        header_cols[0].write("**Stock**")
+        header_cols[1].write("**Price (₹)**")
+        header_cols[2].write("**Logo**")
 
-        cached_prices = get_all_prices(available_stocks)
         for symbol in available_stocks:
-            price = cached_prices.get(symbol)
-            if price is not None:
+            price = latest_price_from_cache(symbol, prices_df)
+            if price is None:
+                # final fallback to your data_fetcher
                 try:
-                    livePrice[symbol] = price
-                    cols = st.columns([2, 1])
-                    cols[0].write(symbol)
-                    cols[1].write(f"₹{price:.2f}")
-                except:
-                    continue
+                    fallback = getStockPrice(symbol)
+                    price = float(fallback) if fallback is not None else None
+                except Exception:
+                    price = None
+
+            row_cols = st.columns([2, 1, 1])
+            row_cols[0].write(symbol)
+            if price is not None:
+                row_cols[1].write(f"₹{price:.2f}")
             else:
-                st.warning(f"Could not fetch price for {symbol}")
+                ui_msg("warning", f"Price unavailable for **{symbol}** right now.")
+
+            logo_url = logo_url_for(symbol)
+            if logo_url:
+                try:
+                    row_cols[2].image(logo_url, width=28)
+                except Exception:
+                    row_cols[2].write("—")
+            else:
+                row_cols[2].write("—")
 
     with right_col:
         st.subheader("📊 Stock Price Comparison")
-        # --- Stock selection for chart ---
-
-        # --- Stock selection for chart ---
         selected_stocks = st.multiselect(
             "Choose stocks to plot (log scale recommended for large price differences):",
             options=available_stocks,
             default=available_stocks[:5],
-            key="chart_stock_select"
+            key="chart_stock_select",
         )
         if not selected_stocks:
-            st.info("Select at least one stock to display the chart.")
+            ui_msg("info", "Select at least one stock to display the chart.")
         else:
-            # --- Plot single chart with log scale ---
+            # Use cached prices for speed; restrict to last 1 month
             from plotly import graph_objs as go
-            fig = go.Figure()
-            for symbol in selected_stocks:
-                try:
-                    data = yf.Ticker(symbol).history(period="1mo")
-                    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name=symbol))
-                except Exception:
-                    continue
-            fig.update_layout(title="Stock Price Comparison (Log Scale)", xaxis_title="Date", yaxis_title="Price (INR)")
-            fig.update_yaxes(type="log")
-            st.plotly_chart(fig, use_container_width=True)
+            if not prices_df.empty:
+                last_month_idx = prices_df.index >= (prices_df.index.max() - pd.Timedelta(days=30))
+                subdf = prices_df.loc[last_month_idx, [c for c in selected_stocks if c in prices_df.columns]].dropna(how="all")
+                fig = go.Figure()
+                for symbol in subdf.columns:
+                    fig.add_trace(go.Scatter(x=subdf.index, y=subdf[symbol], mode='lines', name=symbol))
+                fig.update_layout(title="Stock Price Comparison (Log Scale)", xaxis_title="Date", yaxis_title="Price (₹)")
+                fig.update_yaxes(type="log")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                ui_msg("warning", "Cached price data not available right now.")
 
-        #-------Buy Stocks Section-------
+        # ------- Buy Stocks Section -------
         st.markdown("### Buy Stocks")
 
         buy_symbol = st.selectbox("Select a stock to buy", available_stocks)
@@ -215,21 +357,31 @@ if menu == "Home":
         if boost_id == "boost_no_fee" and store.is_boost_active(st.session_state['player_name'], "boost_no_fee"):
             TRANSACTION_FEE_RATE = 0.0
 
+        price = None
         if buy_symbol:
-            try:
-                price = yf.Ticker(buy_symbol).info.get("regularMarketPrice", 0)
-                st.info(f"Current price of {buy_symbol} is ₹{price:.2f}")
-            except:
-                price = None
-                st.warning("Invalid stock symbol or data not available.")
+            # Prefer cached latest price
+            price = latest_price_from_cache(buy_symbol, prices_df)
+            if price is not None:
+                ui_msg("info", f"Current price of **{buy_symbol}** is ₹{price:.2f}")
+            else:
+                try:
+                    live_price = yf.Ticker(buy_symbol).info.get("regularMarketPrice", 0)
+                    price = float(live_price) if live_price else None
+                    if price:
+                        ui_msg("info", f"Current price of **{buy_symbol}** is ₹{price:.2f}")
+                    else:
+                        ui_msg("warning", "Symbol data not available right now.")
+                except Exception:
+                    price = None
+                    ui_msg("warning", "Invalid stock symbol or data not available.")
 
             user_cash = balance
             st.markdown(f"Your current cash balance is: ₹{user_cash:,.2f}")
             if price:
                 total_cost = price * buy_quantity
                 fee = total_cost * TRANSACTION_FEE_RATE
-                st.info(f"Transaction Fee: ₹{fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'})")
-                st.info(f"Total Cost (incl. fee): ₹{total_cost + fee:,.2f}")
+                ui_msg("info", f"Transaction Fee: ₹{fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'})")
+                ui_msg("info", f"Total Cost (incl. fee): ₹{total_cost + fee:,.2f}")
 
             if st.button("Confirm purchase"):
                 if price and (total_cost + fee) <= st.session_state['balance']:
@@ -241,7 +393,7 @@ if menu == "Home":
                     portfolio_path = get_portfolio_path()
                     try:
                         portfolio = pd.read_csv(portfolio_path)
-                    except:
+                    except Exception:
                         portfolio = pd.DataFrame(columns=["Symbol", "Quantity", "Buy Price", "Buy Date"])
                     if buy_symbol in portfolio["Symbol"].values:
                         row = portfolio.loc[portfolio["Symbol"] == buy_symbol]
@@ -255,7 +407,7 @@ if menu == "Home":
                             "Symbol": buy_symbol,
                             "Quantity": buy_quantity,
                             "Buy Price": price,
-                            "Buy Date": datetime.datetime.now().strftime("%Y-%m-%d")
+                            "Buy Date": datetime.datetime.now().strftime("%Y-%m-%d"),
                         }
                         portfolio = pd.concat([portfolio, pd.DataFrame([new_row])], ignore_index=True)
                     portfolio.to_csv(portfolio_path, index=False)
@@ -265,50 +417,101 @@ if menu == "Home":
                     st.toast("🎉 Achievement Unlocked: First Trade!")
                     add_notification("🎉 Achievement Unlocked: First Trade!", "success")
 
+                    # --- NEW Achievement: Perfect Timing (buy at monthly low) ---
+                    try:
+                        if buy_symbol in prices_df.columns:
+                            month_df = prices_df[buy_symbol].dropna()
+                            month_df = month_df[month_df.index >= (month_df.index.max() - pd.Timedelta(days=30))]
+                            if not month_df.empty and abs(price - float(month_df.min())) <= max(0.01, 0.001 * price):
+                                achievements.unlock_achievement(st.session_state['player_name'], "perfect_timing")
+                                st.toast("🎯 Perfect Timing unlocked! Bought at monthly low.")
+                    except Exception:
+                        pass
+
                     # --- Log portfolio value ---
                     pa.log_portfolio_value(portfolio, history_path=get_portfolio_history_path())
 
-                    st.success(f"Purchased {buy_quantity} shares of {buy_symbol} for ₹{total_cost + fee:,.2f}.")
+                    ui_msg("success", f"Purchased {buy_quantity} shares of **{buy_symbol}** for ₹{total_cost + fee:,.2f}.")
                     st.rerun()
                 elif price:
-                    st.error("Insufficient balance for this purchase.")
+                    ui_msg("error", "Insufficient balance for this purchase.")
                 else:
-                    st.error("Invalid stock price.")
+                    ui_msg("error", "Invalid stock price.")
 
-    #-------Portfolio Section-------
+    # ------- Portfolio Section -------
     st.markdown("### Your Portfolio")
     try:
         portfolio = pd.read_csv(get_portfolio_path())
-    except:
+    except Exception:
         portfolio = pd.DataFrame()
+
     if not portfolio.empty:
-        currentPrices = []
-        profitPercents = []
-        for index, row in portfolio.iterrows():
+        # Compute current prices using cache (fallback to yfinance if missing)
+        current_prices: List[float] = []
+        for _, row in portfolio.iterrows():
             symbol = row['Symbol']
-            try:
-                livePrice = yf.Ticker(symbol).info.get("regularMarketPrice", 0)
-            except:
-                livePrice = 0
-            currentPrices.append(round(livePrice, 2))
-            profit = ((livePrice - row['Buy Price']) / row['Buy Price']) * 100
-            profitPercents.append(round(profit, 2))
-        portfolio['Current Price'] = currentPrices
-        portfolio['Profit (%)'] = profitPercents
+            p = latest_price_from_cache(symbol, prices_df)
+            if p is None:
+                try:
+                    p = float(yf.Ticker(symbol).info.get("regularMarketPrice", 0)) or None
+                except Exception:
+                    p = None
+            current_prices.append(round(p, 2) if p is not None else 0.0)
+
+        portfolio['Current Price'] = current_prices
+
+        # --- Better Portfolio Metrics (NEW) ---
+        portfolio['Total Invested'] = portfolio['Quantity'] * portfolio['Buy Price']
+        portfolio['Current Value'] = portfolio['Quantity'] * portfolio['Current Price']
+        portfolio['Unrealized P&L (₹)'] = portfolio['Current Value'] - portfolio['Total Invested']
+        portfolio['Unrealized P&L (%)'] = portfolio.apply(
+            lambda r: (r['Unrealized P&L (₹)'] / r['Total Invested']) * 100 if r['Total Invested'] > 0 else 0.0,
+            axis=1,
+        )
+
+        # Simple color hint with emoji in a separate column for vibes
+        portfolio['📈/📉'] = portfolio['Unrealized P&L (₹)'].apply(lambda x: '📈' if x >= 0 else '📉')
+
         st.dataframe(portfolio, use_container_width=True)
+
         # Check portfolio value achievements
         portfolio_value = pa.calculate_portfolio_value(portfolio)
-        # Achievements per user
         if portfolio_value >= 50000:
             achievements.unlock_achievement(st.session_state['player_name'], "portfolio_50k")
         if portfolio_value >= 100000:
             achievements.unlock_achievement(st.session_state['player_name'], "portfolio_1lakh")
         if portfolio_value >= 500000:
             achievements.unlock_achievement(st.session_state['player_name'], "portfolio_5lakh")
-    else:
-        st.info("No holdings yet")
 
-    # ---------💸 Sell Section---------------
+        # --- NEW Achievement: Moonshot (100% gain on a single holding)
+        try:
+            if (portfolio['Unrealized P&L (%)'] >= 100).any():
+                achievements.unlock_achievement(st.session_state['player_name'], "moonshot")
+                st.toast("🚀 Moonshot unlocked! 100% gain on a stock.")
+        except Exception:
+            pass
+
+        # --- NEW Achievement: Bear Slayer (profit during basket 5% drop over 7 days)
+        try:
+            if not prices_df.empty:
+                # basket avg return last 7 days
+                last = prices_df.iloc[-1]
+                first_idx = prices_df.index.max() - pd.Timedelta(days=7)
+                prev = prices_df[prices_df.index >= first_idx].iloc[0]
+                # Align columns
+                common = [c for c in last.index if c in prev.index]
+                if common:
+                    basket_return = (last[common].mean() - prev[common].mean()) / max(prev[common].mean(), 1e-9)
+                    if basket_return < -0.05 and portfolio['Unrealized P&L (₹)'].sum() > 0:
+                        achievements.unlock_achievement(st.session_state['player_name'], "bear_slayer")
+                        st.toast("🐻 Bear Slayer unlocked! Profit during a 5% market drop.")
+        except Exception:
+            pass
+
+    else:
+        ui_msg("info", "No holdings yet. Start your journey from the **Buy Stocks** section above!")
+
+    # --------- 💸 Sell Section ---------------
     st.subheader("💸 Sell Stocks")
     sell_symbol = st.selectbox("Select a stock to sell", portfolio["Symbol"].unique() if not portfolio.empty else [])
     sell_qty = st.number_input("Quantity to sell", min_value=1, step=1)
@@ -316,47 +519,44 @@ if menu == "Home":
         success, message = sell_stock(sell_symbol, sell_qty)
         if success:
             try:
-                sell_price = yf.Ticker(sell_symbol).info.get("regularMarketPrice", 0)
+                sell_price = latest_price_from_cache(sell_symbol, prices_df)
+                if sell_price is None:
+                    sell_price = float(yf.Ticker(sell_symbol).info.get("regularMarketPrice", 0))
                 sell_total = sell_price * sell_qty
                 sell_fee = sell_total * TRANSACTION_FEE_RATE
                 boost_id = store.get_active_rewards(st.session_state['player_name']).get("boost")
-                double_profit = False
                 if boost_id == "boost_double_profit" and store.is_boost_active(st.session_state['player_name'], "boost_double_profit"):
                     buy_price = 0
                     try:
                         buy_price = float(portfolio.loc[portfolio["Symbol"] == sell_symbol, "Buy Price"].values[0])
-                    except:
+                    except Exception:
                         pass
                     profit = (sell_price - buy_price) * sell_qty
                     if profit > 0:
                         update_cash_balance(profit)
                         st.session_state['balance'] += profit
                         save_user_data(st.session_state['player_name'], st.session_state['balance'])
-                        st.success(f"⚡ Double Profit Day! Extra ₹{profit:.2f} credited.")
-                        double_profit = True
-                from game_logic import update_cash_balance
-                update_cash_balance(-sell_fee)
+                        ui_msg("success", f"⚡ Double Profit Day! Extra ₹{profit:.2f} credited.")
+                from game_logic import update_cash_balance as _update_cash_balance
+                _update_cash_balance(-sell_fee)
                 st.session_state['balance'] -= sell_fee
                 save_user_data(st.session_state['player_name'], st.session_state['balance'])
-                st.info(f"Transaction Fee: ₹{sell_fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'}) deducted from cash balance.")
-            except:
+                ui_msg("info", f"Transaction Fee: ₹{sell_fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'}) deducted from cash balance.")
+            except Exception:
                 pass
-            st.success(str(message))
+            ui_msg("success", str(message))
             achievements.unlock_achievement(st.session_state['player_name'], "first_trade")
             st.toast("🎉 Achievement Unlocked: First Trade!")
             add_notification("🎉 Achievement Unlocked: First Trade!", "success")
-            st.rerun()  # <-- add rerun after successful sell
+            st.rerun()
         else:
-            st.error(str(message))
-
-    # If you update portfolio after sell, save to get_portfolio_path()
-    # Example: portfolio.to_csv(get_portfolio_path(), index=False)
+            ui_msg("error", str(message))
 
     # Log today's portfolio value (once per day)
     try:
         df = pd.read_csv(get_portfolio_path())
         pa.log_portfolio_value(df, history_path=get_portfolio_history_path())
-    except:
+    except Exception:
         pass
 
 elif menu == "Achievements":
@@ -384,7 +584,7 @@ elif menu == "Store":
         "badge": "🏅",
         "boost": "⚡",
         "analytics": "📊",
-        "theme": "🎨"
+        "theme": "🎨",
     }
     for reward in rewards:
         icon = ICONS.get(reward.get("type", "cash"), "🎁")
@@ -392,7 +592,7 @@ elif menu == "Store":
         active_str = "🌟 Active" if active.get(reward["type"]) == reward["id"] else ""
         st.markdown(f"### {icon} {reward['name']} [{reward['difficulty']}] - Cost: {reward['cost']} pts {owned_str} {active_str}")
         st.caption(reward['desc'])
-        col1, col2 = st.columns([2,1])
+        col1, col2 = st.columns([2, 1])
         with col1:
             if reward["id"] in owned:
                 if reward["type"] in ["badge", "theme", "boost", "analytics"]:
@@ -410,14 +610,10 @@ elif menu == "Store":
             else:
                 if st.button(f"Redeem: {reward['name']}", key=reward['id']):
                     success, msg = store.redeem_reward(
-                        st.session_state['player_name'],
-                        reward['id'],
-                        update_cash_balance,
-                        lambda: balance
+                        st.session_state['player_name'], reward['id'], update_cash_balance, lambda: st.session_state['balance']
                     )
                     if success:
                         st.success(msg)
-                        st.session_state['balance'] = st.session_state['balance']  # update as needed
                         save_user_data(st.session_state['player_name'], st.session_state['balance'])
                     else:
                         st.error(msg)
@@ -451,7 +647,7 @@ elif menu == "Detailed Analysis":
         if fig:
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Not enough data yet.")
+            ui_msg("info", "Not enough data yet.")
     with col2:
         st.markdown("### 🧩 Asset Diversification")
         df = pd.read_csv(get_portfolio_path())
@@ -459,12 +655,12 @@ elif menu == "Detailed Analysis":
         if pie:
             st.plotly_chart(pie, use_container_width=True)
         else:
-            st.info("Portfolio is empty.")
+            ui_msg("info", "Portfolio is empty.")
     st.markdown("### 🔍 Select a Stock for Detailed Analysis")
     selected_symbol = st.selectbox(
         "Choose from your holdings",
         options=df["Symbol"].unique() if not df.empty else [],
-        index=0 if not df.empty else None
+        index=0 if not df.empty else None,
     )
     if selected_symbol:
         st.markdown(f"### 📉 Price Chart: {selected_symbol}")
@@ -472,29 +668,31 @@ elif menu == "Detailed Analysis":
         if chart:
             st.plotly_chart(chart, use_container_width=True)
         else:
-            st.warning("No data available for this stock.")
+            ui_msg("warning", "No data available for this stock.")
         st.markdown(f"### ⚖️ Risk Metrics for {selected_symbol}")
         metrics = pa.calculate_risk_metrics_filtered(df, selected_symbol)
         st.metric("📊 Volatility", metrics["Volatility"])
-        st.metric("⚖️ Sharpe Ratio", metrics["Sharpe Ratio"])
+        st.metric("⚖️ Sharpe Ratio", metrics["Sharpe Ratio"])()
 
         # --- Price Alert Section (with stock selection) ---
         st.markdown("### 🔔 Set Price Alert")
         alert_symbol = st.selectbox(
             "Select stock for alert",
             options=available_stocks,
-            key="detailed_alert_symbol"
+            key="detailed_alert_symbol",
         )
         alert_direction = st.radio("Alert me when price...", ["goes above", "falls below"], key="alert_direction")
         alert_price = st.number_input("Alert price (INR)", min_value=1.0, step=1.0, key="detailed_alert_price")
         if st.button("Set Alert", key="detailed_set_alert"):
-            st.success(f"Alert set for {alert_symbol} when price {alert_direction} ₹{alert_price:.2f}")
+            ui_msg("success", f"Alert set for **{alert_symbol}** when price {alert_direction} ₹{alert_price:.2f}")
 
         # Check for price alert trigger
         if 'price_alert' in st.session_state:
             alert = st.session_state['price_alert']
             try:
-                current = yf.Ticker(alert['symbol']).info.get("regularMarketPrice", 0)
+                current = latest_price_from_cache(alert['symbol'], prices_df)
+                if current is None:
+                    current = float(yf.Ticker(alert['symbol']).info.get("regularMarketPrice", 0))
                 if (
                     (alert['direction'] == 'goes above' and current >= alert['price']) or
                     (alert['direction'] == 'falls below' and current <= alert['price'])
@@ -504,9 +702,8 @@ elif menu == "Detailed Analysis":
             except Exception:
                 pass
 
-        # --- Dividend & Split Section (moved here) ---
+        # --- Dividend & Split Section ---
         st.markdown("### 💸 Dividends & Splits")
-        import datetime, json
         dividend_state_path = os.path.join("data", "dividend_state.json")
         today = datetime.date.today()
         if os.path.exists(dividend_state_path):
@@ -517,12 +714,12 @@ elif menu == "Detailed Analysis":
         last_div_month = dividend_state.get("last_month")
         if st.button("Collect Dividends", key="detailed_collect_dividends"):
             if last_div_month == f"{today.year}-{today.month:02d}":
-                st.info("You have already collected dividends for this month.")
+                ui_msg("info", "You have already collected dividends for this month.")
             else:
                 try:
-                    portfolio = pd.read_csv(get_portfolio_path())
+                    portfolio_df = pd.read_csv(get_portfolio_path())
                     total_dividend = 0
-                    for idx, row in portfolio.iterrows():
+                    for idx, row in portfolio_df.iterrows():
                         shares = row['Quantity']
                         ticker = yf.Ticker(row['Symbol'])
                         dividends = ticker.dividends
@@ -530,10 +727,9 @@ elif menu == "Detailed Analysis":
                             month_divs = dividends[dividends.index.to_period('M') == pd.Period(today, 'M')]
                             if not month_divs.empty:
                                 last_div = month_divs.iloc[-1]
-                                dividend = last_div * shares
+                                dividend = float(last_div) * float(shares)
                                 total_dividend += dividend
                     if total_dividend > 0:
-                        from game_logic import update_cash_balance, get_cash_balance
                         st.session_state['balance'] += total_dividend
                         save_user_data(st.session_state['player_name'], st.session_state['balance'])
                         update_cash_balance(total_dividend)
@@ -542,65 +738,86 @@ elif menu == "Detailed Analysis":
                         with open(dividend_state_path, "w") as f:
                             json.dump(dividend_state, f)
                     else:
-                        st.info("No dividends available for your holdings this month.")
+                        ui_msg("info", "No dividends available for your holdings this month.")
                 except Exception as e:
-                    st.warning(f"Dividend collection failed: {e}")
+                    ui_msg("warning", f"Dividend collection failed: {e}")
         if st.button("Simulate 2-for-1 Stock Split", key="detailed_split"):
             try:
-                portfolio = pd.read_csv(get_portfolio_path())
-                portfolio['Quantity'] = portfolio['Quantity'] * 2
-                portfolio['Buy Price'] = portfolio['Buy Price'] / 2
-                portfolio.to_csv(get_portfolio_path(), index=False)
+                portfolio_df = pd.read_csv(get_portfolio_path())
+                portfolio_df['Quantity'] = portfolio_df['Quantity'] * 2
+                portfolio_df['Buy Price'] = portfolio_df['Buy Price'] / 2
+                portfolio_df.to_csv(get_portfolio_path(), index=False)
                 st.toast("🔀 2-for-1 Stock Split applied to all holdings!")
             except Exception as e:
-                st.warning(f"Stock split simulation failed: {e}")
+                ui_msg("warning", f"Stock split simulation failed: {e}")
 
 # --- Educational Content Section ---
 if menu == "Learn":
     st.title("📚 Learn & Level Up!")
     st.markdown("Sharpen your trading skills as you play. Expand the sections below to learn more about key concepts!")
     with st.expander("What is a Portfolio?"):
-        st.write("""
+        st.write(
+            """
         A portfolio is a collection of financial investments like stocks, bonds, commodities, cash, and cash equivalents, including mutual funds and ETFs. In this game, your portfolio consists of the stocks you buy and sell.
-        """)
+        """
+        )
     with st.expander("How do Dividends Work?"):
-        st.write("""
+        st.write(
+            """
         Dividends are payments made by a corporation to its shareholders, usually as a distribution of profits. If you own a stock when a dividend is paid, you receive a payout per share.
-        """)
+        """
+        )
     with st.expander("What is a Stock Split?"):
-        st.write("""
+        st.write(
+            """
         A stock split increases the number of shares in a company. For example, in a 2-for-1 split, you get 2 shares for every 1 you own, but each is worth half as much. Your total value stays the same.
-        """)
+        """
+        )
     with st.expander("What is Volatility?"):
-        st.write("""
+        st.write(
+            """
         Volatility is a statistical measure of the dispersion of returns for a given security or market index. High volatility means the price of the asset can change dramatically in either direction.
-        """)
+        """
+        )
     with st.expander("What is the Sharpe Ratio?"):
-        st.write("""
+        st.write(
+            """
         The Sharpe Ratio measures the performance of an investment compared to a risk-free asset, after adjusting for its risk. The higher the Sharpe Ratio, the better the risk-adjusted return.
-        """)
+        """
+        )
     with st.expander("What is Diversification?"):
-        st.write("""
+        st.write(
+            """
         Diversification is the practice of spreading your investments across different assets, sectors, or geographies to reduce risk. A diversified portfolio is less likely to experience large losses because different assets often perform differently under the same conditions.
-        """)
+        """
+        )
     with st.expander("What are Transaction Fees?"):
-        st.write("""
+        st.write(
+            """
         Transaction fees are small costs charged when you buy or sell stocks. In this game, a 0.5% fee is applied to each trade (unless you have a No Fee Day boost!). Always consider fees when planning your trades.
-        """)
+        """
+        )
     with st.expander("What are Boosts and Rewards?"):
-        st.write("""
+        st.write(
+            """
         Boosts and rewards are special items you can earn or redeem in the Store. Some boosts give you advantages like no transaction fees or double profits for a day. Badges and themes let you customize your profile and experience.
-        """)
+        """
+        )
     with st.expander("What is a Leaderboard?"):
-        st.write("""
+        st.write(
+            """
         A leaderboard ranks players based on their portfolio value, points, or achievements. Competing on the leaderboard can motivate you to improve your trading skills and try new strategies.
-        """)
+        """
+        )
     with st.expander("What is Risk Management?"):
-        st.write("""
+        st.write(
+            """
         Risk management means using strategies to minimize potential losses. This includes setting stop-losses, diversifying, and not investing all your cash in one stock. Good risk management helps you stay in the game longer and avoid big setbacks.
-        """)
+        """
+        )
     with st.expander("Tips for Virtual Trading Success"):
-        st.write("""
+        st.write(
+            """
         - Diversify your portfolio
         - Monitor your holdings regularly
         - Set price alerts for your favorite stocks
@@ -609,8 +826,25 @@ if menu == "Learn":
         - Don’t let emotions drive your trades—stick to your strategy
         - Review your performance and learn from mistakes
         - Stay updated on market news and trends
-        """)
+        """
+        )
 
 st.markdown("---")
 st.caption("Built with ❤️ by Ritvik's Trading Engine")
+
+
+Done! I dropped in the upgraded main app with:
+
+Offline price cache (twice daily): data/prices.csv stores Close prices via a batched yf.download. Auto-refreshes every 12 hours, used across Market Watch, charts, and portfolio pricing.
+
+Better portfolio metrics: adds Total Invested, Current Value, Unrealized P&L (₹), Unrealized P&L (%), plus a 📈/📉 hint column.
+
+Achievements expansion: hooks for 🎯 Perfect Timing, 🐻 Bear Slayer, and 🚀 Moonshot based on your rules.
+
+UI polish: emoji-driven ui_msg() replaces several raw warnings/infos; Market Watch now shows company logos (best-effort via Yahoo/Clearbit).
+
+
+Open the canvas to copy the code into your file: CryptoGame Main App (enhanced).
+
+If you want, I can also patch your achievements.py to define the three new badges (names, points, difficulty, descriptions) so they render nicely in the Achievements tab.
 
