@@ -115,7 +115,7 @@ if menu == "Home":
     st.markdown("Trade stocks, track your portfolio and grow your virtual net worth")
 
     # --- Apply active theme (if any) ---
-    active_rewards = store.get_active_rewards()
+    active_rewards = store.get_active_rewards(st.session_state['player_name'])
     theme_id = active_rewards.get("theme")
     if theme_id == "theme_dark":
         st.markdown("""
@@ -212,7 +212,7 @@ if menu == "Home":
 
         TRANSACTION_FEE_RATE = 0.005
         boost_id = active_rewards.get("boost")
-        if boost_id == "boost_no_fee" and store.is_boost_active("boost_no_fee"):
+        if boost_id == "boost_no_fee" and store.is_boost_active(st.session_state['player_name'], "boost_no_fee"):
             TRANSACTION_FEE_RATE = 0.0
 
         if buy_symbol:
@@ -288,9 +288,9 @@ if menu == "Home":
                 sell_price = yf.Ticker(sell_symbol).info.get("regularMarketPrice", 0)
                 sell_total = sell_price * sell_qty
                 sell_fee = sell_total * TRANSACTION_FEE_RATE
-                boost_id = store.get_active_rewards().get("boost")
+                boost_id = store.get_active_rewards(st.session_state['player_name']).get("boost")
                 double_profit = False
-                if boost_id == "boost_double_profit" and store.is_boost_active("boost_double_profit"):
+                if boost_id == "boost_double_profit" and store.is_boost_active(st.session_state['player_name'], "boost_double_profit"):
                     buy_price = 0
                     try:
                         buy_price = float(portfolio.loc[portfolio["Symbol"] == sell_symbol, "Buy Price"].values[0])
