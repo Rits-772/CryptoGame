@@ -248,7 +248,7 @@ prices_df = load_price_cache(available_stocks, period="6mo")
 
 if menu == "Home":
     st.title("Stock Game - Virtual Trader 📈")
-    st.markdown(f"Welcome, **{st.session_state['player_name']}**! 👋")
+    st.markdown(f"Welcome, {st.session_state['player_name']}! 👋")
     st.markdown("Trade stocks, track your portfolio and grow your virtual net worth")
 
     # --- Apply active theme (if any) ---
