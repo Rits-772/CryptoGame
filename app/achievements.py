@@ -2,9 +2,6 @@
 import json
 import os
 
-ACH_FILE = os.path.join("data", "achievements.json")
-POINTS_FILE = os.path.join("data", "points.txt")
-
 ACHIEVEMENTS = [
     {"id": "first_trade", "name": "Rookie Trader", "difficulty": "Beginner", "points": 10, "desc": "Complete your very first trade (buy or sell)."},
     {"id": "portfolio_10k", "name": "Five Figures Club", "difficulty": "Beginner", "points": 10, "desc": "Grow your portfolio to ₹10,000 or more."},
@@ -22,47 +19,58 @@ ACHIEVEMENTS = [
     {"id": "first_loss", "name": "Hard Lesson", "difficulty": "Beginner", "points": 10, "desc": "Sell a stock at a loss for the first time."},
 ]
 
-def load_achievements():
-    if not os.path.exists(ACH_FILE):
-        with open(ACH_FILE, "w") as f:
+def get_ach_file(username):
+    return os.path.join("data", f"achievements_{username}.json")
+
+def get_points_file(username):
+    return os.path.join("data", f"points_{username}.txt")
+
+def load_achievements(username):
+    ach_file = get_ach_file(username)
+    if not os.path.exists(ach_file):
+        with open(ach_file, "w") as f:
             json.dump({"unlocked": []}, f)
-    with open(ACH_FILE, "r") as f:
+    with open(ach_file, "r") as f:
         return json.load(f)
 
-def save_achievements(data):
-    with open(ACH_FILE, "w") as f:
+def save_achievements(username, data):
+    ach_file = get_ach_file(username)
+    with open(ach_file, "w") as f:
         json.dump(data, f)
 
-def unlock_achievement(ach_id):
-    data = load_achievements()
+def unlock_achievement(username, ach_id):
+    data = load_achievements(username)
     if ach_id not in data["unlocked"]:
         data["unlocked"].append(ach_id)
-        save_achievements(data)
+        save_achievements(username, data)
         ach = next(a for a in ACHIEVEMENTS if a["id"] == ach_id)
-        add_points(ach["points"])
+        add_points(username, ach["points"])
         return ach
     return None
 
-def get_points():
-    if not os.path.exists(POINTS_FILE):
-        with open(POINTS_FILE, "w") as f:
+def get_points(username):
+    points_file = get_points_file(username)
+    if not os.path.exists(points_file):
+        with open(points_file, "w") as f:
             f.write("0")
-    with open(POINTS_FILE, "r") as f:
+    with open(points_file, "r") as f:
         return int(f.read().strip())
 
-def add_points(pts):
-    points = get_points() + pts
-    with open(POINTS_FILE, "w") as f:
+def add_points(username, pts):
+    points = get_points(username) + pts
+    points_file = get_points_file(username)
+    with open(points_file, "w") as f:
         f.write(str(points))
 
-def redeem_points(pts):
-    points = get_points()
+def redeem_points(username, pts):
+    points = get_points(username)
+    points_file = get_points_file(username)
     if points >= pts:
-        with open(POINTS_FILE, "w") as f:
+        with open(points_file, "w") as f:
             f.write(str(points - pts))
         return True
     return False
 
-def get_unlocked_achievements():
-    data = load_achievements()
+def get_unlocked_achievements(username):
+    data = load_achievements(username)
     return [a for a in ACHIEVEMENTS if a["id"] in data["unlocked"]]

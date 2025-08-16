@@ -101,6 +101,14 @@ if 'sidebar_nav' not in st.session_state:
 menu = st.session_state['sidebar_nav']
 
 
+# --- Per-user portfolio and history paths ---
+def get_portfolio_path():
+    return os.path.join("data", f"Portfolio_{st.session_state['player_name']}.csv")
+
+def get_portfolio_history_path():
+    return os.path.join("data", f"portfolio_history_{st.session_state['player_name']}.csv")
+
+
 if menu == "Home":
     st.title("Stock Game - Virtual Trader 📈")
     st.markdown(f"Welcome, **{st.session_state['player_name']}**! 👋")
@@ -239,7 +247,7 @@ if menu == "Home":
     st.markdown("### Your Portfolio")
     portfolio = pd.DataFrame()
     try:
-        portfolio = pd.read_csv(os.path.join("data", "Portfolio.csv"))
+        portfolio = pd.read_csv(get_portfolio_path())
     except:
         pass
     if not portfolio.empty:
@@ -259,12 +267,13 @@ if menu == "Home":
         st.dataframe(portfolio, use_container_width=True)
         # Check portfolio value achievements
         portfolio_value = pa.calculate_portfolio_value(portfolio)
+        # Achievements per user
         if portfolio_value >= 50000:
-            achievements.unlock_achievement("portfolio_50k")
+            achievements.unlock_achievement(st.session_state['player_name'], "portfolio_50k")
         if portfolio_value >= 100000:
-            achievements.unlock_achievement("portfolio_1lakh")
+            achievements.unlock_achievement(st.session_state['player_name'], "portfolio_1lakh")
         if portfolio_value >= 500000:
-            achievements.unlock_achievement("portfolio_5lakh")
+            achievements.unlock_achievement(st.session_state['player_name'], "portfolio_5lakh")
     else:
         st.info("No holdings yet")
 
@@ -302,22 +311,25 @@ if menu == "Home":
             except:
                 pass
             st.success(str(message))
-            achievements.unlock_achievement("first_trade")
+            achievements.unlock_achievement(st.session_state['player_name'], "first_trade")
             st.toast("🎉 Achievement Unlocked: First Trade!")
             add_notification("🎉 Achievement Unlocked: First Trade!", "success")
         else:
             st.error(str(message))
 
+    # If you update portfolio after sell, save to get_portfolio_path()
+    # Example: portfolio.to_csv(get_portfolio_path(), index=False)
+
     # Log today's portfolio value (once per day)
     try:
-        df = pd.read_csv(os.path.join("data", "Portfolio.csv"))
-        pa.log_portfolio_value(df)
+        df = pd.read_csv(get_portfolio_path())
+        pa.log_portfolio_value(df, history_path=get_portfolio_history_path())
     except:
         pass
 
 elif menu == "Achievements":
     st.markdown("## 🏆 Achievements")
-    unlocked_ids = [a['id'] for a in achievements.get_unlocked_achievements()]
+    unlocked_ids = [a['id'] for a in achievements.get_unlocked_achievements(st.session_state['player_name'])]
     for ach in achievements.ACHIEVEMENTS:
         is_unlocked = ach['id'] in unlocked_ids
         icon = "✅" if is_unlocked else "🔒"
@@ -327,14 +339,14 @@ elif menu == "Achievements":
                 st.success("Unlocked!")
             else:
                 st.info("Locked")
-    st.info(f"Total Points: {achievements.get_points()}")
+    st.info(f"Total Points: {achievements.get_points(st.session_state['player_name'])}")
 
 elif menu == "Store":
     st.markdown("## 🛒 Store")
     st.write("Redeem your points for cash, badges, boosts, and analytics tools!")
     rewards = store.get_rewards()
-    owned = store.get_owned_rewards()
-    active = store.get_active_rewards()
+    owned = store.get_owned_rewards(st.session_state['player_name'])
+    active = store.get_active_rewards(st.session_state['player_name'])
     ICONS = {
         "cash": "💰",
         "badge": "🏅",
@@ -356,7 +368,7 @@ elif menu == "Store":
                         st.button("Activated", key=f"active_{reward['id']}", disabled=True)
                     else:
                         if st.button(f"Activate: {reward['name']}", key=f"activate_{reward['id']}"):
-                            ok, msg = store.activate_reward(reward['id'])
+                            ok, msg = store.activate_reward(st.session_state['player_name'], reward['id'])
                             if ok:
                                 st.success(msg)
                             else:
@@ -365,10 +377,14 @@ elif menu == "Store":
                     st.button(f"Redeemed", key=f"owned_{reward['id']}", disabled=True)
             else:
                 if st.button(f"Redeem: {reward['name']}", key=reward['id']):
-                    success, msg = store.redeem_reward(reward['id'], update_cash_balance, lambda: balance)
+                    success, msg = store.redeem_reward(
+                        st.session_state['player_name'],
+                        reward['id'],
+                        update_cash_balance,
+                        lambda: balance
+                    )
                     if success:
                         st.success(msg)
-                        # If reward affects cash, update and save
                         st.session_state['balance'] = st.session_state['balance']  # update as needed
                         save_user_data(st.session_state['player_name'], st.session_state['balance'])
                     else:
@@ -377,7 +393,7 @@ elif menu == "Store":
         if reward["type"] == "boost" and reward["id"] in owned and active.get("boost") == reward["id"]:
             with col2:
                 if st.button(f"Use {reward['name']}", key=f"use_{reward['id']}"):
-                    ok, msg = store.use_boost(reward['id'])
+                    ok, msg = store.use_boost(st.session_state['player_name'], reward['id'])
                     if ok:
                         st.success("Boost used! Effect will apply to your next eligible action.")
                     else:
@@ -399,14 +415,14 @@ elif menu == "Detailed Analysis":
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("### 📈 Portfolio Value Over Time")
-        fig = pa.plot_portfolio_value_over_time()
+        fig = pa.plot_portfolio_value_over_time(history_path=get_portfolio_history_path())
         if fig:
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Not enough data yet.")
     with col2:
         st.markdown("### 🧩 Asset Diversification")
-        df = pd.read_csv(os.path.join("data", "Portfolio.csv"))
+        df = pd.read_csv(get_portfolio_path())
         pie = pa.plot_asset_allocation(df)
         if pie:
             st.plotly_chart(pie, use_container_width=True)
@@ -472,7 +488,7 @@ elif menu == "Detailed Analysis":
                 st.info("You have already collected dividends for this month.")
             else:
                 try:
-                    portfolio = pd.read_csv(os.path.join("data", "Portfolio.csv"))
+                    portfolio = pd.read_csv(get_portfolio_path())
                     total_dividend = 0
                     for idx, row in portfolio.iterrows():
                         shares = row['Quantity']
@@ -499,10 +515,10 @@ elif menu == "Detailed Analysis":
                     st.warning(f"Dividend collection failed: {e}")
         if st.button("Simulate 2-for-1 Stock Split", key="detailed_split"):
             try:
-                portfolio = pd.read_csv(os.path.join("data", "Portfolio.csv"))
+                portfolio = pd.read_csv(get_portfolio_path())
                 portfolio['Quantity'] = portfolio['Quantity'] * 2
                 portfolio['Buy Price'] = portfolio['Buy Price'] / 2
-                portfolio.to_csv(os.path.join("data", "Portfolio.csv"), index=False)
+                portfolio.to_csv(get_portfolio_path(), index=False)
                 st.toast("🔀 2-for-1 Stock Split applied to all holdings!")
             except Exception as e:
                 st.warning(f"Stock split simulation failed: {e}")
@@ -565,5 +581,4 @@ if menu == "Learn":
 
 st.markdown("---")
 st.caption("Built with ❤️ by Ritvik's Trading Engine")
-st.markdown("---")
-st.caption("Built with ❤️ by Ritvik's Trading Engine")
+

@@ -5,43 +5,50 @@ import plotly.graph_objects as go
 import os
 from datetime import datetime
 
-PORTFOLIO_FILE = os.path.join("data", "Portfolio.csv")
-BALANCE_FILE = os.path.join("data", "cashBalance.txt")
-STARTING_BALANCE = 100000  # ₹1,00,000
+def get_portfolio_path(player_name):
+    return os.path.join("data", f"Portfolio_{player_name}.csv")
 
-def initialize_game():
-    if not os.path.exists(PORTFOLIO_FILE):
-        pd.DataFrame(columns=["Symbol", "Quantity", "Buy Price", "Buy Date"]).to_csv(PORTFOLIO_FILE, index=False)
+def get_balance_file(player_name):
+    return os.path.join("data", f"cashBalance_{player_name}.txt")
 
-    if not os.path.exists(BALANCE_FILE):
-        with open(BALANCE_FILE, "w") as f:
+STARTING_BALANCE = 10000  # ₹10,000
+
+def initialize_game(player_name):
+    portfolio_file = get_portfolio_path(player_name)
+    balance_file = get_balance_file(player_name)
+    if not os.path.exists(portfolio_file):
+        pd.DataFrame(columns=["Symbol", "Quantity", "Buy Price", "Buy Date"]).to_csv(portfolio_file, index=False)
+    if not os.path.exists(balance_file):
+        with open(balance_file, "w") as f:
             f.write(str(STARTING_BALANCE))
 
-def get_cash_balance():
-    with open(BALANCE_FILE, "r") as f:
+def get_cash_balance(player_name):
+    balance_file = get_balance_file(player_name)
+    with open(balance_file, "r") as f:
         return float(f.read())
 
-def update_cash_balance(new_balance):
-    with open(BALANCE_FILE, "w") as f:
+def update_cash_balance(player_name, new_balance):
+    balance_file = get_balance_file(player_name)
+    with open(balance_file, "w") as f:
         f.write(str(new_balance))
 
-def get_portfolio():
-    return pd.read_csv(PORTFOLIO_FILE)
+def get_portfolio(player_name):
+    return pd.read_csv(get_portfolio_path(player_name))
 
-def update_portfolio(df):
-    df.to_csv(PORTFOLIO_FILE, index=False)
+def update_portfolio(player_name, df):
+    df.to_csv(get_portfolio_path(player_name), index=False)
 
-def buy_stock(symbol, quantity):
+def buy_stock(player_name, symbol, quantity):
     quantity = int(quantity)
     stock = yf.Ticker(symbol)
     price = stock.history(period="1d")["Close"][0]
     cost = price * quantity
 
-    balance = get_cash_balance()
+    balance = get_cash_balance(player_name)
     if cost > balance:
         return False, f"Not enough balance to buy {quantity} shares of {symbol} at ₹{price:.2f}"
 
-    portfolio = get_portfolio()
+    portfolio = get_portfolio(player_name)
     if symbol in portfolio["Symbol"].values:
         row = portfolio.loc[portfolio["Symbol"] == symbol]
         new_qty = row.Quantity.values[0] + quantity
@@ -51,17 +58,17 @@ def buy_stock(symbol, quantity):
         new_row = {"Symbol": symbol, "Quantity": quantity, "Buy Price": price, "Buy Date": datetime.now().strftime("%Y-%m-%d")}
         portfolio = pd.concat([portfolio, pd.DataFrame([new_row])], ignore_index=True)
 
-    update_portfolio(portfolio)
-    update_cash_balance(balance - cost)
+    update_portfolio(player_name, portfolio)
+    update_cash_balance(player_name, balance - cost)
     return True, f"Bought {quantity} shares of {symbol} at ₹{price:.2f} each."
 
-def sell_stock(symbol, quantity):
+def sell_stock(player_name, symbol, quantity):
     quantity = int(quantity)
     stock = yf.Ticker(symbol)
     price = stock.history(period="1d")["Close"][0]
     revenue = price * quantity
 
-    portfolio = get_portfolio()
+    portfolio = get_portfolio(player_name)
     if symbol not in portfolio["Symbol"].values:
         return False, f"You don't own any shares of {symbol}."
 
@@ -76,10 +83,9 @@ def sell_stock(symbol, quantity):
     else:
         portfolio.loc[portfolio["Symbol"] == symbol, "Quantity"] = current_qty - quantity
 
-    update_portfolio(portfolio)
-    update_cash_balance(get_cash_balance() + revenue)
+    update_portfolio(player_name, portfolio)
+    update_cash_balance(player_name, get_cash_balance(player_name) + revenue)
     return True, f"Sold {quantity} shares of {symbol} at ₹{price:.2f} each."
- 
 
 def get_combined_price_charts_grouped(symbols):
     import plotly.graph_objects as go

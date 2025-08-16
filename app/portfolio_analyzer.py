@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
 import plotly.express as px
+import plotly.graph_objs as go
 import datetime
 import os
 import numpy as np
@@ -18,27 +19,35 @@ def calculate_portfolio_value(portfolio_df):
         
     return totalValue
 
-def log_portfolio_value(portfolio_df, cashBalanceFile="cashBalance.txt", historyFile="portfolio_history.csv"):
+def log_portfolio_value(portfolio_df, cashBalanceFile=None, history_path="data/portfolio_history.csv"):
+    # Log today's portfolio value to the specified history file
     today = datetime.date.today().isoformat()
     totalStockValue = calculate_portfolio_value(portfolio_df)
-    cash = float(open(cashBalanceFile).read().strip()) if os.path.exists(cashBalanceFile) else 0.0
+    cash = 0.0
+    if cashBalanceFile and os.path.exists(cashBalanceFile):
+        cash = float(open(cashBalanceFile).read().strip())
     totalValue = totalStockValue + cash
 
     df = pd.DataFrame([[today, totalValue]], columns=["Date", "Portfolio Value"])
-    if os.path.exists(historyFile):
-        existing = pd.read_csv(historyFile)
-        if today not in existing['Date'].values:
-            df = pd.concat([existing, df])
-        else:
+    if os.path.exists(history_path):
+        existing = pd.read_csv(history_path)
+        if today in existing['Date'].values:
+            existing.loc[existing['Date'] == today, 'Portfolio Value'] = totalValue
             df = existing
-    df.to_csv(historyFile, index=False)
+        else:
+            df = pd.concat([existing, df])
+    df.to_csv(history_path, index=False)
     
-def plot_portfolio_value_over_time(historyFile="portfolio_history.csv"):
-    if os.path.exists(historyFile):
+def plot_portfolio_value_over_time(history_path="data/portfolio_history.csv"):
+    # Plot portfolio value over time from the specified history file
+    if not os.path.exists(history_path):
         return None
-    
-    df = pd.read_csv(historyFile)
-    fig = px.line(df, x='Date', y='Portfolio Value', title='Portfolio Value Over Time')
+    df = pd.read_csv(history_path)
+    if df.empty or "Portfolio Value" not in df.columns:
+        return None
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df["Date"], y=df["Portfolio Value"], mode="lines+markers", name="Portfolio Value"))
+    fig.update_layout(title="Portfolio Value Over Time", xaxis_title="Date", yaxis_title="Value (INR)")
     return fig
 
 def plot_asset_allocation(portfolio_df):
