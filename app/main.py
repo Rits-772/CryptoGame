@@ -236,8 +236,40 @@ if menu == "Home":
                     # Deduct cost and fee from balance
                     st.session_state['balance'] -= (total_cost + fee)
                     save_user_data(st.session_state['player_name'], st.session_state['balance'])
-                    # Optionally update portfolio here
+
+                    # --- Update portfolio file ---
+                    portfolio_path = get_portfolio_path()
+                    try:
+                        portfolio = pd.read_csv(portfolio_path)
+                    except:
+                        portfolio = pd.DataFrame(columns=["Symbol", "Quantity", "Buy Price", "Buy Date"])
+                    if buy_symbol in portfolio["Symbol"].values:
+                        row = portfolio.loc[portfolio["Symbol"] == buy_symbol]
+                        new_qty = row.Quantity.values[0] + buy_quantity
+                        new_price = ((row.Quantity.values[0] * row["Buy Price"].values[0]) + (price * buy_quantity)) / new_qty
+                        portfolio.loc[portfolio["Symbol"] == buy_symbol, ["Quantity", "Buy Price", "Buy Date"]] = [
+                            new_qty, new_price, datetime.datetime.now().strftime("%Y-%m-%d")
+                        ]
+                    else:
+                        new_row = {
+                            "Symbol": buy_symbol,
+                            "Quantity": buy_quantity,
+                            "Buy Price": price,
+                            "Buy Date": datetime.datetime.now().strftime("%Y-%m-%d")
+                        }
+                        portfolio = pd.concat([portfolio, pd.DataFrame([new_row])], ignore_index=True)
+                    portfolio.to_csv(portfolio_path, index=False)
+
+                    # --- Achievement: first_trade ---
+                    achievements.unlock_achievement(st.session_state['player_name'], "first_trade")
+                    st.toast("🎉 Achievement Unlocked: First Trade!")
+                    add_notification("🎉 Achievement Unlocked: First Trade!", "success")
+
+                    # --- Log portfolio value ---
+                    pa.log_portfolio_value(portfolio, history_path=get_portfolio_history_path())
+
                     st.success(f"Purchased {buy_quantity} shares of {buy_symbol} for ₹{total_cost + fee:,.2f}.")
+                    st.rerun()
                 elif price:
                     st.error("Insufficient balance for this purchase.")
                 else:
@@ -245,11 +277,10 @@ if menu == "Home":
 
     #-------Portfolio Section-------
     st.markdown("### Your Portfolio")
-    portfolio = pd.DataFrame()
     try:
         portfolio = pd.read_csv(get_portfolio_path())
     except:
-        pass
+        portfolio = pd.DataFrame()
     if not portfolio.empty:
         currentPrices = []
         profitPercents = []
@@ -314,6 +345,7 @@ if menu == "Home":
             achievements.unlock_achievement(st.session_state['player_name'], "first_trade")
             st.toast("🎉 Achievement Unlocked: First Trade!")
             add_notification("🎉 Achievement Unlocked: First Trade!", "success")
+            st.rerun()  # <-- add rerun after successful sell
         else:
             st.error(str(message))
 
