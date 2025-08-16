@@ -1,0 +1,17 @@
+<!-- Sidebar HTML for CryptoGame -->
+<div class="sidebar-title">✨ CryptoGame Menu</div>
+<div class="sidebar-nav">
+    <button class="sidebar-nav-btn{home_active}" onclick="window.parent.postMessage({type: 'sidebar_nav', value: '🏠 Home'}, '*')">
+        <span class="icon">🏠</span><span class="text">Home</span>
+    </button>
+    <button class="sidebar-nav-btn{ach_active}" onclick="window.parent.postMessage({type: 'sidebar_nav', value: '🏆 Achievements'}, '*')">
+        <span class="icon">🏆</span><span class="text">Achievements</span>
+    </button>
+    <button class="sidebar-nav-btn{store_active}" onclick="window.parent.postMessage({type: 'sidebar_nav', value: '🛒 Store'}, '*')">
+        <span class="icon">🛒</span><span class="text">Store</span>
+    </button>
+    <button class="sidebar-nav-btn{analysis_active}" onclick="window.parent.postMessage({type: 'sidebar_nav', value: '📊 Detailed Analysis'}, '*')">
+        <span class="icon">📊</span><span class="text">Detailed Analysis</span>
+    </button>
+</div>
+<button class="sidebar-collapse" onclick="toggleSidebar()">⇔</button>

@@ -1,0 +1,56 @@
+/* Sidebar styles for CryptoGame */
+.sidebar-title { font-size: 1.7em; font-weight: bold; margin-bottom: 1.2em; color: #2e3b4e; letter-spacing: 1px; }
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    margin-bottom: 2em;
+}
+.sidebar-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.7em;
+    padding: 0.7em 1em;
+    border-radius: 10px;
+    font-size: 1.15em;
+    font-weight: 600;
+    color: #2e3b4e;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.sidebar-nav-btn:hover, .sidebar-nav-btn.active {
+    background: #e3e8f0;
+    color: #1a2330;
+}
+.sidebar-nav-btn .icon {
+    font-size: 1.3em;
+    min-width: 1.5em;
+    text-align: center;
+}
+.sidebar-collapse {
+    position: absolute;
+    top: 1.5em;
+    right: 0.5em;
+    background: #f7fafd;
+    border: none;
+    border-radius: 50%;
+    width: 2em;
+    height: 2em;
+    font-size: 1.2em;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.sidebar-collapse:hover {
+    background: #e3e8f0;
+}
+.sidebar-collapsed .sidebar-nav-btn span.text {
+    display: none;
+}
+.sidebar-collapsed .sidebar-title {
+    display: none;
+}
+.sidebar-collapsed .sidebar-nav {
+    align-items: center;
+}
