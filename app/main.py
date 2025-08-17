@@ -286,157 +286,144 @@ if menu == "Home":
     st.metric(label="💰 Available Cash", value=f"₹{balance:,.2f}")
 
     # ------- Market Watch Section -------
-    left_col, right_col = st.columns([1, 1])
+    st.subheader("📃 Available Stocks")
+    header_cols = st.columns([2, 1, 1])
+    header_cols[0].write("**Stock**")
+    header_cols[1].write("**Price (₹)**")
+    header_cols[2].write("**Logo**")
 
-    with left_col:
-        st.subheader("📃 Available Stocks")
-        header_cols = st.columns([2, 1, 1])
-        header_cols[0].write("**Stock**")
-        header_cols[1].write("**Price (₹)**")
-        header_cols[2].write("**Logo**")
-
-        for symbol in available_stocks:
-            price = latest_price_from_cache(symbol, prices_df)
-            if price is None:
-                # final fallback to your data_fetcher
-                try:
-                    fallback = getStockPrice(symbol)
-                    price = float(fallback) if fallback is not None else None
-                except Exception:
-                    price = None
-
-            row_cols = st.columns([2, 1, 1])
-            row_cols[0].write(symbol)
-            if price is not None:
-                row_cols[1].write(f"₹{price:.2f}")
-            else:
-                ui_msg("warning", f"Price unavailable for **{symbol}** right now.")
-
+    for symbol in available_stocks:
+        price = latest_price_from_cache(symbol, prices_df)
+        if price is None:
+            try:
+                price = getStockPrice(symbol)
+            except Exception:
+                price = None
+        logo_url = None
+        try:
             logo_url = logo_url_for(symbol)
-            if logo_url:
-                try:
-                    row_cols[2].image(logo_url, width=28)
-                except Exception:
-                    row_cols[2].write("—")
-            else:
-                row_cols[2].write("—")
-
-    with right_col:
-        st.subheader("📊 Stock Price Comparison")
-        selected_stocks = st.multiselect(
-            "Choose stocks to plot (log scale recommended for large price differences):",
-            options=available_stocks,
-            default=available_stocks[:5],
-            key="chart_stock_select",
-        )
-        if not selected_stocks:
-            ui_msg("info", "Select at least one stock to display the chart.")
+        except Exception:
+            logo_url = None
+        row_cols = st.columns([2, 1, 1])
+        row_cols[0].write(symbol)
+        row_cols[1].write(f"₹{price:.2f}" if price is not None else "N/A")
+        if logo_url:
+            row_cols[2].image(logo_url, width=32)
         else:
-            # Use cached prices for speed; restrict to last 1 month
-            from plotly import graph_objs as go
-            if not prices_df.empty:
-                last_month_idx = prices_df.index >= (prices_df.index.max() - pd.Timedelta(days=30))
-                subdf = prices_df.loc[last_month_idx, [c for c in selected_stocks if c in prices_df.columns]].dropna(how="all")
-                fig = go.Figure()
-                for symbol in subdf.columns:
-                    fig.add_trace(go.Scatter(x=subdf.index, y=subdf[symbol], mode='lines', name=symbol))
-                fig.update_layout(title="Stock Price Comparison (Log Scale)", xaxis_title="Date", yaxis_title="Price (₹)")
-                fig.update_yaxes(type="log")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                ui_msg("warning", "Cached price data not available right now.")
+            row_cols[2].write("")
+    
+    st.subheader("📊 Stock Price Comparison")
+    selected_stocks = st.multiselect(
+        "Choose stocks to plot (log scale recommended for large price differences):",
+        options=available_stocks,
+        default=available_stocks[:5],
+        key="chart_stock_select",        )
+    if not selected_stocks:
+        ui_msg("info", "Select at least one stock to display the chart.")
+    else:
+        # Use cached prices for speed; restrict to last 1 month
+        from plotly import graph_objs as go
+        if not prices_df.empty:
+            last_month_idx = prices_df.index >= (prices_df.index.max() - pd.Timedelta(days=30))
+            subdf = prices_df.loc[last_month_idx, [c for c in selected_stocks if c in prices_df.columns]].dropna(how="all")
+            fig = go.Figure()
+            for symbol in subdf.columns:
+                fig.add_trace(go.Scatter(x=subdf.index, y=subdf[symbol], mode='lines', name=symbol))
+            fig.update_layout(title="Stock Price Comparison (Log Scale)", xaxis_title="Date", yaxis_title="Price (₹)")
+            fig.update_yaxes(type="log")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            ui_msg("warning", "Cached price data not available right now.")
+    # ------- Buy Stocks Section -------
+    st.markdown("### Buy Stocks")
+    buy_symbol = st.selectbox("Select a stock to buy", available_stocks)
+    buy_quantity = st.number_input("Quantity", min_value=1, step=1)
 
-        # ------- Buy Stocks Section -------
-        st.markdown("### Buy Stocks")
+    TRANSACTION_FEE_RATE = 0.005
+    boost_id = active_rewards.get("boost")
+    if boost_id == "boost_no_fee" and store.is_boost_active(st.session_state['player_name'], "boost_no_fee"):
+        TRANSACTION_FEE_RATE = 0.0
 
-        buy_symbol = st.selectbox("Select a stock to buy", available_stocks)
-        buy_quantity = st.number_input("Quantity", min_value=1, step=1)
-
-        TRANSACTION_FEE_RATE = 0.005
-        boost_id = active_rewards.get("boost")
-        if boost_id == "boost_no_fee" and store.is_boost_active(st.session_state['player_name'], "boost_no_fee"):
-            TRANSACTION_FEE_RATE = 0.0
-
-        price = None
-        if buy_symbol:
-            # Prefer cached latest price
-            price = latest_price_from_cache(buy_symbol, prices_df)
-            if price is not None:
-                ui_msg("info", f"Current price of **{buy_symbol}** is ₹{price:.2f}")
-            else:
-                try:
-                    live_price = yf.Ticker(buy_symbol).info.get("regularMarketPrice", 0)
-                    price = float(live_price) if live_price else None
-                    if price:
-                        ui_msg("info", f"Current price of **{buy_symbol}** is ₹{price:.2f}")
-                    else:
-                        ui_msg("warning", "Symbol data not available right now.")
-                except Exception:
-                    price = None
-                    ui_msg("warning", "Invalid stock symbol or data not available.")
-
-            user_cash = balance
-            st.markdown(f"Your current cash balance is: ₹{user_cash:,.2f}")
-            if price:
-                total_cost = price * buy_quantity
-                fee = total_cost * TRANSACTION_FEE_RATE
-                ui_msg("info", f"Transaction Fee: ₹{fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'})")
-                ui_msg("info", f"Total Cost (incl. fee): ₹{total_cost + fee:,.2f}")
-
-            if st.button("Confirm purchase"):
-                if price and (total_cost + fee) <= st.session_state['balance']:
-                    # Deduct cost and fee from balance
-                    st.session_state['balance'] -= (total_cost + fee)
-                    save_user_data(st.session_state['player_name'], st.session_state['balance'])
-
-                    # --- Update portfolio file ---
-                    portfolio_path = get_portfolio_path()
-                    try:
-                        portfolio = pd.read_csv(portfolio_path)
-                    except Exception:
-                        portfolio = pd.DataFrame(columns=["Symbol", "Quantity", "Buy Price", "Buy Date"])
-                    if buy_symbol in portfolio["Symbol"].values:
-                        row = portfolio.loc[portfolio["Symbol"] == buy_symbol]
-                        new_qty = row.Quantity.values[0] + buy_quantity
-                        new_price = ((row.Quantity.values[0] * row["Buy Price"].values[0]) + (price * buy_quantity)) / new_qty
-                        portfolio.loc[portfolio["Symbol"] == buy_symbol, ["Quantity", "Buy Price", "Buy Date"]] = [
-                            new_qty, new_price, datetime.datetime.now().strftime("%Y-%m-%d")
-                        ]
-                    else:
-                        new_row = {
-                            "Symbol": buy_symbol,
-                            "Quantity": buy_quantity,
-                            "Buy Price": price,
-                            "Buy Date": datetime.datetime.now().strftime("%Y-%m-%d"),
-                        }
-                        portfolio = pd.concat([portfolio, pd.DataFrame([new_row])], ignore_index=True)
-                    portfolio.to_csv(portfolio_path, index=False)
-
-                    # --- Achievement: first_trade ---
-                    achievements.unlock_achievement(st.session_state['player_name'], "first_trade")
-                    st.toast("🎉 Achievement Unlocked: First Trade!")
-                    add_notification("🎉 Achievement Unlocked: First Trade!", "success")
-
-                    # --- NEW Achievement: Perfect Timing (buy at monthly low) ---
-                    try:
-                        if buy_symbol in prices_df.columns:
-                            month_df = prices_df[buy_symbol].dropna()
-                            month_df = month_df[month_df.index >= (month_df.index.max() - pd.Timedelta(days=30))]
-                            if not month_df.empty and abs(price - float(month_df.min())) <= max(0.01, 0.001 * price):
-                                achievements.unlock_achievement(st.session_state['player_name'], "perfect_timing")
-                                st.toast("🎯 Perfect Timing unlocked! Bought at monthly low.")
-                    except Exception:
-                        pass
-
-                    # --- Log portfolio value ---
-                    pa.log_portfolio_value(portfolio, history_path=get_portfolio_history_path())
-
-                    ui_msg("success", f"Purchased {buy_quantity} shares of **{buy_symbol}** for ₹{total_cost + fee:,.2f}.")
-                    st.rerun()
-                elif price:
-                    ui_msg("error", "Insufficient balance for this purchase.")
+    price = None
+    if buy_symbol:
+        # Prefer cached latest price
+        price = latest_price_from_cache(buy_symbol, prices_df)
+        if price is not None:
+            ui_msg("info", f"Current price of **{buy_symbol}** is ₹{price:.2f}")
+        else:
+            try:
+                live_price = yf.Ticker(buy_symbol).info.get("regularMarketPrice", 0)
+                price = float(live_price) if live_price else None
+                if price:
+                    ui_msg("info", f"Current price of **{buy_symbol}** is ₹{price:.2f}")
                 else:
-                    ui_msg("error", "Invalid stock price.")
+                    ui_msg("warning", "Symbol data not available right now.")
+            except Exception:
+                price = None
+                ui_msg("warning", "Invalid stock symbol or data not available.")
+
+        user_cash = balance
+        st.markdown(f"Your current cash balance is: ₹{user_cash:,.2f}")
+        if price:
+            total_cost = price * buy_quantity
+            fee = total_cost * TRANSACTION_FEE_RATE
+            ui_msg("info", f"Transaction Fee: ₹{fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'})")
+            ui_msg("info", f"Total Cost (incl. fee): ₹{total_cost + fee:,.2f}")
+            
+        if st.button("Confirm purchase"):
+            if price and (total_cost + fee) <= st.session_state['balance']:
+                # Deduct cost and fee from balance
+                st.session_state['balance'] -= (total_cost + fee)
+                save_user_data(st.session_state['player_name'], st.session_state['balance'])
+
+                # --- Update portfolio file ---
+                portfolio_path = get_portfolio_path()
+                try:
+                    portfolio = pd.read_csv(portfolio_path)
+                except Exception:
+                    portfolio = pd.DataFrame(columns=["Symbol", "Quantity", "Buy Price", "Buy Date"])
+                if buy_symbol in portfolio["Symbol"].values:
+                    row = portfolio.loc[portfolio["Symbol"] == buy_symbol]
+                    new_qty = row.Quantity.values[0] + buy_quantity
+                    new_price = ((row.Quantity.values[0] * row["Buy Price"].values[0]) + (price * buy_quantity)) / new_qty
+                    portfolio.loc[portfolio["Symbol"] == buy_symbol, ["Quantity", "Buy Price", "Buy Date"]] = [
+                        new_qty, new_price, datetime.datetime.now().strftime("%Y-%m-%d")
+                    ]
+                else:
+                    new_row = {
+                        "Symbol": buy_symbol,
+                        "Quantity": buy_quantity,
+                        "Buy Price": price,
+                        "Buy Date": datetime.datetime.now().strftime("%Y-%m-%d"),
+                    }
+                    portfolio = pd.concat([portfolio, pd.DataFrame([new_row])], ignore_index=True)
+                portfolio.to_csv(portfolio_path, index=False)
+
+                # --- Achievement: first_trade ---
+                achievements.unlock_achievement(st.session_state['player_name'], "first_trade")
+                st.toast("🎉 Achievement Unlocked: First Trade!")
+                add_notification("🎉 Achievement Unlocked: First Trade!", "success")
+
+                # --- NEW Achievement: Perfect Timing (buy at monthly low) ---
+                try:
+                    if buy_symbol in prices_df.columns:
+                        month_df = prices_df[buy_symbol].dropna()
+                        month_df = month_df[month_df.index >= (month_df.index.max() - pd.Timedelta(days=30))]
+                        if not month_df.empty and abs(price - float(month_df.min())) <= max(0.01, 0.001 * price):
+                            achievements.unlock_achievement(st.session_state['player_name'], "perfect_timing")
+                            st.toast("🎯 Perfect Timing unlocked! Bought at monthly low.")
+                except Exception:
+                    pass
+
+                # --- Log portfolio value ---
+                pa.log_portfolio_value(portfolio, history_path=get_portfolio_history_path())
+
+                ui_msg("success", f"Purchased {buy_quantity} shares of **{buy_symbol}** for ₹{total_cost + fee:,.2f}.")
+                st.rerun()
+            elif price:
+                ui_msg("error", "Insufficient balance for this purchase.")
+            else:
+                ui_msg("error", "Invalid stock price.")
 
     # ------- Portfolio Section -------
     st.markdown("### Your Portfolio")
