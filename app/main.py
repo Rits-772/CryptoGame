@@ -831,20 +831,3 @@ if menu == "Learn":
 
 st.markdown("---")
 st.caption("Built with ❤️ by Ritvik's Trading Engine")
-
-
-Done! I dropped in the upgraded main app with:
-
-Offline price cache (twice daily): data/prices.csv stores Close prices via a batched yf.download. Auto-refreshes every 12 hours, used across Market Watch, charts, and portfolio pricing.
-
-Better portfolio metrics: adds Total Invested, Current Value, Unrealized P&L (₹), Unrealized P&L (%), plus a 📈/📉 hint column.
-
-Achievements expansion: hooks for 🎯 Perfect Timing, 🐻 Bear Slayer, and 🚀 Moonshot based on your rules.
-
-UI polish: emoji-driven ui_msg() replaces several raw warnings/infos; Market Watch now shows company logos (best-effort via Yahoo/Clearbit).
-
-
-Open the canvas to copy the code into your file: CryptoGame Main App (enhanced).
-
-If you want, I can also patch your achievements.py to define the three new badges (names, points, difficulty, descriptions) so they render nicely in the Achievements tab.
-
