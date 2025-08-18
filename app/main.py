@@ -53,77 +53,62 @@ def normalize_close_df(close_obj, symbols: List[str]) -> pd.DataFrame:
 
 def load_price_cache(symbols: List[str], period: str = "6mo") -> pd.DataFrame:
     """Load cached Close prices for symbols; refresh if older than REFRESH_INTERVAL."""
-    # If cache exists & fresh: load and return
     if os.path.exists(PRICE_FILE):
         try:
             modified_time = os.path.getmtime(PRICE_FILE)
             if time.time() - modified_time < REFRESH_INTERVAL:
                 cached = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
-                # ensure we only return requested symbols that are in cache
                 return cached[[c for c in symbols if c in cached.columns]]
         except Exception:
             pass
 
-    # Otherwise fetch fresh data (single batched call where possible)
     try:
         data = yf.download(symbols, period=period, auto_adjust=False, threads=True)
-        close = data["Close"] if "Close" in data else data  # if single series
-        df = normalize_close_df(close, symbols)
-        # Persist superset (merge with existing if present)
+        if data is not None and isinstance(data, pd.DataFrame) and "Close" in data:
+            close = data["Close"]
+        else:
+            close = data if isinstance(data, pd.DataFrame) else None
+        if close is not None:
+            df = normalize_close_df(close, symbols)
+        else:
+            df = pd.DataFrame()
         if os.path.exists(PRICE_FILE):
             try:
                 old = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
-                df = old.combine_first(df).join(df, how="outer", rsuffix="_new")
-                # prefer newer columns without suffix
-                for col in list(df.columns):
-                    if col.endswith("_new"):
-                        base = col[:-4]
-                        df[base] = df[col].combine_first(df.get(base))
-                        df.drop(columns=[col], inplace=True)
+                if not old.empty and not df.empty:
+                    df = old.combine_first(df).join(df, how="outer", rsuffix="_new")
+                    for col in list(df.columns):
+                        if col.endswith("_new"):
+                            base = col[:-4]
+                            if base in df.columns:
+                                df[base] = df[col].combine_first(df[base])
+                            else:
+                                df[base] = df[col]
+                            df.drop(columns=[col], inplace=True)
             except Exception:
                 pass
         df.sort_index(inplace=True)
         df.to_csv(PRICE_FILE)
         return df[[c for c in symbols if c in df.columns]]
     except Exception:
-        # final fallback: if cache exists, return whatever we have
         if os.path.exists(PRICE_FILE):
             try:
                 cached = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
                 return cached[[c for c in symbols if c in cached.columns]]
             except Exception:
                 pass
-        # nothing
         return pd.DataFrame()
-
 
 def latest_price_from_cache(symbol: str, prices_df: pd.DataFrame) -> float:
     try:
-        if symbol in prices_df.columns and not prices_df[symbol].dropna().empty:
+        if prices_df is not None and symbol in prices_df.columns and not prices_df[symbol].dropna().empty:
             return float(prices_df[symbol].dropna().iloc[-1])
     except Exception:
         pass
-    return None
-
-
-# Optional: lightweight logo fetch helper (best-effort)
-SYMBOL_TO_DOMAIN = {
-    # US Tech
-    "AAPL": "apple.com", "GOOGL": "abc.xyz", "AMZN": "amazon.com", "MSFT": "microsoft.com",
-    "TSLA": "tesla.com", "NFLX": "netflix.com", "META": "meta.com", "NVDA": "nvidia.com",
-    "BRK-B": "berkshirehathaway.com", "V": "visa.com",
-    # India (best-guess primary domains)
-    "INFY.NS": "infosys.com", "TCS.NS": "tcs.com", "HDFCBANK.NS": "hdfcbank.com",
-    "RELIANCE.NS": "ril.com", "ICICIBANK.NS": "icicibank.com", "SBIN.NS": "sbi.co.in",
-    "KOTAKBANK.NS": "kotak.com", "AXISBANK.NS": "axisbank.com", "LT.NS": "larsentoubro.com",
-    "ITC.NS": "itcportal.com", "BAJFINANCE.NS": "bajajfinserv.in", "SUNPHARMA.NS": "sunpharma.com",
-    "MARUTI.NS": "marutisuzuki.com", "TITAN.NS": "titan.co.in", "ONGC.NS": "ongcindia.com",
-    "HCLTECH.NS": "hcltech.com", "ULTRACEMCO.NS": "ultratechcement.com", "ASIANPAINTS.NS": "asianpaints.com",
-}
+    return 0.0  # Always return float
 
 @st.cache_data(ttl=6*60*60)
 def logo_url_for(symbol: str) -> str:
-    # First try yfinance info (may be missing)
     try:
         info = yf.Ticker(symbol).info
         if isinstance(info, dict):
@@ -132,11 +117,10 @@ def logo_url_for(symbol: str) -> str:
                 return logo
     except Exception:
         pass
-    # Fallback to Clearbit (will 404 for unknown domains; Streamlit will ignore)
     domain = SYMBOL_TO_DOMAIN.get(symbol)
     if domain:
         return f"https://logo.clearbit.com/{domain}"
-    return None
+    return ""  # Always return str
 
 
 # --- User Login & Persistent Balance ---
@@ -287,11 +271,9 @@ if menu == "Home":
 
     # ------- Market Watch Section -------
     st.subheader("📃 Available Stocks")
-    header_cols = st.columns([2, 1, 1])
-    header_cols[0].write("**Stock**")
-    header_cols[1].write("**Price (₹)**")
-    header_cols[2].write("**Logo**")
 
+    # Build a list of stock info
+    stock_rows = []
     for symbol in available_stocks:
         price = latest_price_from_cache(symbol, prices_df)
         if price is None:
@@ -304,13 +286,47 @@ if menu == "Home":
             logo_url = logo_url_for(symbol)
         except Exception:
             logo_url = None
-        row_cols = st.columns([2, 1, 1])
-        row_cols[0].write(symbol)
-        row_cols[1].write(f"₹{price:.2f}" if price is not None else "N/A")
-        if logo_url:
-            row_cols[2].image(logo_url, width=32)
-        else:
-            row_cols[2].write("")
+        stock_rows.append({
+            "symbol": symbol,
+            "price": f"₹{price:.2f}" if price is not None else "N/A",
+            "logo_url": logo_url if logo_url else "",
+        })
+
+    # Create HTML table for stocks with logos
+    table_html = """
+    <style>
+    .stock-table { width: 100%; border-collapse: collapse; }
+    .stock-table th, .stock-table td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    .stock-table img { max-width: 32px; max-height: 32px; vertical-align: middle; }
+    @media (max-width: 600px) {
+        .stock-table th, .stock-table td { padding: 4px; font-size: 12px; }
+        .stock-table img { max-width: 20px; max-height: 20px; }
+    }
+    </style>
+    <table class="stock-table">
+        <thead>
+            <tr>
+                <th>Stock</th>
+                <th>Price (₹)</th>
+                <th>Logo</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    for row in stock_rows:
+        table_html += f"""
+            <tr>
+                <td>{row['symbol']}</td>
+                <td>{row['price']}</td>
+                <td>{f'<img src="{row["logo_url"]}" alt="{row["symbol"]}">' if row["logo_url"] else ''}</td>
+            </tr>
+        """
+    table_html += """
+        </tbody>
+    </table>
+    """
+
+    st.markdown(table_html, unsafe_allow_html=True)
     
     st.subheader("📊 Stock Price Comparison")
     selected_stocks = st.multiselect(
@@ -345,8 +361,9 @@ if menu == "Home":
         TRANSACTION_FEE_RATE = 0.0
 
     price = None
+    total_cost = 0.0
+    fee = 0.0
     if buy_symbol:
-        # Prefer cached latest price
         price = latest_price_from_cache(buy_symbol, prices_df)
         if price is not None:
             ui_msg("info", f"Current price of **{buy_symbol}** is ₹{price:.2f}")
@@ -369,10 +386,9 @@ if menu == "Home":
             fee = total_cost * TRANSACTION_FEE_RATE
             ui_msg("info", f"Transaction Fee: ₹{fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'})")
             ui_msg("info", f"Total Cost (incl. fee): ₹{total_cost + fee:,.2f}")
-            
+
         if st.button("Confirm purchase"):
             if price and (total_cost + fee) <= st.session_state['balance']:
-                # Deduct cost and fee from balance
                 st.session_state['balance'] -= (total_cost + fee)
                 save_user_data(st.session_state['player_name'], st.session_state['balance'])
 
@@ -382,10 +398,15 @@ if menu == "Home":
                     portfolio = pd.read_csv(portfolio_path)
                 except Exception:
                     portfolio = pd.DataFrame(columns=["Symbol", "Quantity", "Buy Price", "Buy Date"])
+                # Fix: Only access .values if it's a pandas Series/array
                 if buy_symbol in portfolio["Symbol"].values:
                     row = portfolio.loc[portfolio["Symbol"] == buy_symbol]
-                    new_qty = row.Quantity.values[0] + buy_quantity
-                    new_price = ((row.Quantity.values[0] * row["Buy Price"].values[0]) + (price * buy_quantity)) / new_qty
+                    if hasattr(row.Quantity, "values") and hasattr(row["Buy Price"], "values"):
+                        new_qty = row.Quantity.values[0] + buy_quantity
+                        new_price = ((row.Quantity.values[0] * row["Buy Price"].values[0]) + (price * buy_quantity)) / new_qty
+                    else:
+                        new_qty = row.Quantity + buy_quantity
+                        new_price = ((row.Quantity * row["Buy Price"]) + (price * buy_quantity)) / new_qty
                     portfolio.loc[portfolio["Symbol"] == buy_symbol, ["Quantity", "Buy Price", "Buy Date"]] = [
                         new_qty, new_price, datetime.datetime.now().strftime("%Y-%m-%d")
                     ]
@@ -512,6 +533,7 @@ if menu == "Home":
                 sell_total = sell_price * sell_qty
                 sell_fee = sell_total * TRANSACTION_FEE_RATE
                 boost_id = store.get_active_rewards(st.session_state['player_name']).get("boost")
+                # Fix: Pass new_balance to update_cash_balance
                 if boost_id == "boost_double_profit" and store.is_boost_active(st.session_state['player_name'], "boost_double_profit"):
                     buy_price = 0
                     try:
@@ -520,12 +542,13 @@ if menu == "Home":
                         pass
                     profit = (sell_price - buy_price) * sell_qty
                     if profit > 0:
-                        update_cash_balance(profit)
+                        update_cash_balance(st.session_state['balance'] + profit)
                         st.session_state['balance'] += profit
                         save_user_data(st.session_state['player_name'], st.session_state['balance'])
                         ui_msg("success", f"⚡ Double Profit Day! Extra ₹{profit:.2f} credited.")
+
                 from game_logic import update_cash_balance as _update_cash_balance
-                _update_cash_balance(-sell_fee)
+                _update_cash_balance(st.session_state['balance'] - sell_fee)
                 st.session_state['balance'] -= sell_fee
                 save_user_data(st.session_state['player_name'], st.session_state['balance'])
                 ui_msg("info", f"Transaction Fee: ₹{sell_fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'}) deducted from cash balance.")
@@ -637,7 +660,12 @@ elif menu == "Detailed Analysis":
             ui_msg("info", "Not enough data yet.")
     with col2:
         st.markdown("### 🧩 Asset Diversification")
-        df = pd.read_csv(get_portfolio_path())
+        # FIX: Check if portfolio file exists before reading
+        portfolio_path = get_portfolio_path()
+        if os.path.exists(portfolio_path):
+            df = pd.read_csv(portfolio_path)
+        else:
+            df = pd.DataFrame()
         pie = pa.plot_asset_allocation(df)
         if pie:
             st.plotly_chart(pie, use_container_width=True)
@@ -659,7 +687,7 @@ elif menu == "Detailed Analysis":
         st.markdown(f"### ⚖️ Risk Metrics for {selected_symbol}")
         metrics = pa.calculate_risk_metrics_filtered(df, selected_symbol)
         st.metric("📊 Volatility", metrics["Volatility"])
-        st.metric("⚖️ Sharpe Ratio", metrics["Sharpe Ratio"])()
+        st.metric("⚖️ Sharpe Ratio", metrics["Sharpe Ratio"])  # Remove parentheses
 
         # --- Price Alert Section (with stock selection) ---
         st.markdown("### 🔔 Set Price Alert")
@@ -711,7 +739,11 @@ elif menu == "Detailed Analysis":
                         ticker = yf.Ticker(row['Symbol'])
                         dividends = ticker.dividends
                         if not dividends.empty:
-                            month_divs = dividends[dividends.index.to_period('M') == pd.Period(today, 'M')]
+                            # Fix: Only use .to_period('M') if index is DatetimeIndex
+                            if isinstance(dividends.index, pd.DatetimeIndex):
+                                month_divs = dividends[dividends.index.to_period('M') == pd.Period(today, 'M')]
+                            else:
+                                month_divs = pd.Series(dtype=float)
                             if not month_divs.empty:
                                 last_div = month_divs.iloc[-1]
                                 dividend = float(last_div) * float(shares)
@@ -866,3 +898,55 @@ if menu == "Learn":
 
 st.markdown("---")
 st.caption("Built with ❤️ by Ritvik's Trading Engine")
+
+# Add this mapping for SYMBOL_TO_DOMAIN
+SYMBOL_TO_DOMAIN = {
+    "AAPL": "apple.com",
+    "GOOGL": "google.com",
+    "AMZN": "amazon.com",
+    "MSFT": "microsoft.com",
+    "TSLA": "tesla.com",
+    "NFLX": "netflix.com",
+    "META": "meta.com",
+    "NVDA": "nvidia.com",
+    "BRK-B": "berkshirehathaway.com",
+    "V": "visa.com",
+    "INFY.NS": "infosys.com",
+    "TCS.NS": "tcs.com",
+    "HDFCBANK.NS": "hdfcbank.com",
+    "RELIANCE.NS": "ril.com",
+    "ICICIBANK.NS": "icicibank.com",
+    "JPM": "jpmorganchase.com",
+    "BAC": "bankofamerica.com",
+    "WMT": "walmart.com",
+    "DIS": "disney.com",
+    "PEP": "pepsico.com",
+    "KO": "coca-cola.com",
+    "MCD": "mcdonalds.com",
+    "CSCO": "cisco.com",
+    "ORCL": "oracle.com",
+    "INTC": "intel.com",
+    "ADBE": "adobe.com",
+    "CRM": "salesforce.com",
+    "PYPL": "paypal.com",
+    "ABNB": "airbnb.com",
+    "AMD": "amd.com",
+    "QCOM": "qualcomm.com",
+    "SBUX": "starbucks.com",
+    "COST": "costco.com",
+    "PFE": "pfizer.com",
+    "MRK": "merck.com",
+    "SBIN.NS": "sbi.co.in",
+    "KOTAKBANK.NS": "kotak.com",
+    "AXISBANK.NS": "axisbank.com",
+    "LT.NS": "larsentoubro.com",
+    "ITC.NS": "itcportal.com",
+    "BAJFINANCE.NS": "bajajfinserv.in",
+    "SUNPHARMA.NS": "sunpharma.com",
+    "MARUTI.NS": "marutisuzuki.com",
+    "TITAN.NS": "titancompany.in",
+    "ONGC.NS": "ongcindia.com",
+    "HCLTECH.NS": "hcltech.com",
+    "ULTRACEMCO.NS": "ultratechcement.com",
+    "ASIANPAINTS.NS": "asianpaints.com",
+}
