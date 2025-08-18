@@ -185,6 +185,83 @@ if not st.session_state['player_name']:
 
 st.set_page_config(page_title="Stock Portfolio Game", layout="wide")
 
+import importlib
+import base64
+
+# ================= Styling =================
+st.set_page_config(page_title="CryptoGame", page_icon="💹", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    body {
+        background-color: #0f2027;
+        background: linear-gradient(to right, #2c5364, #203a43, #0f2027);
+        color: white;
+    }
+    
+    .stApp header {visibility: hidden;}
+    .stApp footer {visibility: hidden;}
+
+    .card {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0px 4px 20px rgba(0,0,0,0.3);
+        transition: 0.3s;
+    }
+    .card:hover {
+        transform: scale(1.02);
+        box-shadow: 0px 6px 25px rgba(0,0,0,0.5);
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        color: #f1f1f1;
+    }
+
+    .sidebar .sidebar-content {
+        background: #1c1c1c;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ================= Animated Background =================
+particles_html = """
+<div id="particles-js"></div>
+<style>
+#particles-js {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  top: 0;
+  left: 0;
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/particles.js"></script>
+<script>
+particlesJS('particles-js',
+  {
+    "particles": {
+      "number": {"value": 60},
+      "color": {"value": "#00eaff"},
+      "shape": {"type": "circle"},
+      "opacity": {"value": 0.3},
+      "size": {"value": 3},
+      "line_linked": {"enable": true, "color": "#00eaff", "opacity": 0.2},
+      "move": {"enable": true, "speed": 2}
+    },
+    "interactivity": {
+      "events": {"onhover": {"enable": true, "mode": "repulse"}}
+    }
+  });
+</script>
+"""
+
+st.components.v1.html(particles_html, height=0, width=0)
+
 # --- Notifications (stateless, session only) ---
 if 'notifications' not in st.session_state:
     st.session_state['notifications'] = []
