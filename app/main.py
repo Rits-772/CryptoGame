@@ -191,41 +191,17 @@ import base64
 # ================= Styling =================
 st.set_page_config(page_title="CryptoGame", page_icon="💹", layout="wide")
 
-st.markdown(
-    """
+st.markdown("""
     <style>
-    body {
-        background-color: #0f2027;
-        background: linear-gradient(to right, #2c5364, #203a43, #0f2027);
-        color: white;
-    }
-    
-    .stApp header {visibility: hidden;}
-    .stApp footer {visibility: hidden;}
-
-    .card {
-        background: rgba(255, 255, 255, 0.05);
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0px 4px 20px rgba(0,0,0,0.3);
-        transition: 0.3s;
-    }
-    .card:hover {
-        transform: scale(1.02);
-        box-shadow: 0px 6px 25px rgba(0,0,0,0.5);
-    }
-
-    h1, h2, h3, h4, h5, h6 {
-        color: #f1f1f1;
-    }
-
-    .sidebar .sidebar-content {
-        background: #1c1c1c;
+    /* Force Streamlit sidebar toggle button to always show */
+    [data-testid="collapsedControl"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
     </style>
-    """,
-    unsafe_allow_html=True
-)
+""", unsafe_allow_html=True)
+
 
 # ================= Animated Background =================
 particles_html = """
@@ -235,31 +211,31 @@ particles_html = """
   position: fixed;
   width: 100%;
   height: 100%;
-  z-index: -1;
+  z-index: -1;  /* send it to the very back */
   top: 0;
   left: 0;
+  pointer-events: none; /* make sure user can't click on it */
 }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/particles.js"></script>
+<script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
 <script>
-particlesJS('particles-js',
-  {
-    "particles": {
-      "number": {"value": 60},
-      "color": {"value": "#00eaff"},
-      "shape": {"type": "circle"},
-      "opacity": {"value": 0.3},
-      "size": {"value": 3},
-      "line_linked": {"enable": true, "color": "#00eaff", "opacity": 0.2},
-      "move": {"enable": true, "speed": 2}
-    },
-    "interactivity": {
-      "events": {"onhover": {"enable": true, "mode": "repulse"}}
+particlesJS("particles-js", {
+  "particles": {
+    "number": {"value": 60},
+    "size": {"value": 3},
+    "move": {"speed": 1},
+    "line_linked": {"enable": false},
+    "color": {"value": "#999999"}
+  },
+  "interactivity": {
+    "events": {
+      "onhover": {"enable": false}, /* disable interaction */
+      "onclick": {"enable": false}
     }
-  });
+  }
+});
 </script>
 """
-
 st.components.v1.html(particles_html, height=0, width=0)
 
 # --- Notifications (stateless, session only) ---
