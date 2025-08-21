@@ -12,7 +12,7 @@ import store as store
 import json
 import time
 from typing import Dict, List
-from background import particles_background
+#from background import particles_background
 
 
 # =============================
@@ -194,7 +194,75 @@ import base64
 # ================= Styling =================
 st.set_page_config(page_title="CryptoGame", page_icon="💹", layout="wide")
 
-particles_background()
+# === Full-page CSS & Particles.js Injection ===
+st.markdown(
+    """
+    <div id="particles-js"></div>
+    <style>
+        /* Target the main container of the app to fill the entire page */
+        .stApp {
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        /* Target the particles div to position it correctly */
+        #particles-js {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1; /* Puts the particles layer behind all content */
+            background-color: #0d0d0d;
+        }
+        /* Ensure all Streamlit content is on top of the particles */
+        .main > div {
+            z-index: 1;
+            position: relative;
+        }
+        .main {
+            z-index: 1;
+            position: relative;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script>
+        particlesJS("particles-js", {
+            "particles": {
+                "number": { "value": 100, "density": { "enable": true, "value_area": 800 } },
+                "color": { "value": "#ffffff" },
+                "shape": { "type": "circle" },
+                "opacity": { "value": 0.5, "random": false },
+                "size": { "value": 3, "random": true },
+                "line_linked": {
+                    "enable": true,
+                    "distance": 150,
+                    "color": "#ffffff",
+                    "opacity": 0.4,
+                    "width": 1
+                },
+                "move": { "enable": true, "speed": 2, "direction": "none", "out_mode": "out" }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": {
+                    "onhover": { "enable": false },
+                    "onclick": { "enable": false }
+                },
+                "modes": {}
+            },
+            "retina_detect": true
+        });
+    </script>
+    """,
+    unsafe_allow_html=True
+)
+
+
+
+#particles_background()
 
 st.markdown("""
     <style>
