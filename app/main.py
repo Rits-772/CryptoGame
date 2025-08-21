@@ -185,6 +185,55 @@ if not st.session_state['player_name']:
 
 st.set_page_config(page_title="Stock Portfolio Game", layout="wide")
 
+# ================= Animated Background =================
+
+# Inject particles.js loader + container
+import streamlit as st
+
+# Add a full-page background div for particles
+st.markdown(
+    """
+    <div id="particles-js"></div>
+    <style>
+    #particles-js {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        z-index: -1; /* push behind all elements */
+        background-color: #0d0d0d; /* fallback background */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    """
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script>
+    particlesJS("particles-js", {
+        "particles": {
+            "number": { "value": 80, "density": { "enable": true, "value_area": 800 } },
+            "color": { "value": "#ffffff" },
+            "shape": { "type": "circle" },
+            "opacity": { "value": 0.5, "random": false },
+            "size": { "value": 3, "random": true },
+            "line_linked": { "enable": true, "distance": 150, "color": "#ffffff", "opacity": 0.4, "width": 1 },
+            "move": { "enable": true, "speed": 2, "direction": "none", "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": false }, "onclick": { "enable": false } },
+            "modes": {}
+        },
+        "retina_detect": true
+    });
+    </script>
+    """,
+    unsafe_allow_html=True
+)
 import importlib
 import base64
 
@@ -202,54 +251,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-
-# ================= Animated Background =================
-
-# Inject particles.js loader + container
-st.markdown(
-    """
-    <div id="particles-js"></div>
-    <style>
-        /* Make particles cover entire background */
-        #particles-js {
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            z-index: -1;  /* Keep it behind Streamlit content */
-        }
-    </style>
-
-    <!-- Load particles.js library -->
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-
-    <!-- Initialize particles -->
-    <script>
-    particlesJS("particles-js", {
-      "particles": {
-        "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
-        "color": { "value": "#ffffff" },
-        "shape": {
-          "type": "circle",
-          "stroke": { "width": 0, "color": "#000000" },
-          "polygon": { "nb_sides": 5 }
-        },
-        "opacity": { "value": 0.5, "random": false },
-        "size": { "value": 3, "random": true },
-        "line_linked": { "enable": true, "distance": 150, "color": "#ffffff", "opacity": 0.4, "width": 1 },
-        "move": { "enable": true, "speed": 2, "direction": "none", "out_mode": "out" }
-      },
-      "interactivity": {
-        "detect_on": "canvas",
-        "events": { "onhover": { "enable": false }, "onclick": { "enable": false }, "resize": true }
-      },
-      "retina_detect": true
-    });
-    </script>
-    """,
-    unsafe_allow_html=True
-)
 
 # --- Notifications (stateless, session only) ---
 if 'notifications' not in st.session_state:
