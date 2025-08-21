@@ -9,6 +9,13 @@ def particles_background():
         """
         <div id="particles-js"></div>
         <style>
+        html, body, .stApp {
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* This is key to prevent scroll bars from a full-page div */
+        }
         #particles-js {
             position: fixed;
             width: 100%;
@@ -18,9 +25,10 @@ def particles_background():
             z-index: -1; /* stays behind everything */
             background-color: #0d0d0d; /* fallback background */
         }
-
         .main > div {
             animation: fadeIn 1.2s ease-in;
+            z-index: 1; /* Ensure your content is on top */
+            position: relative;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
