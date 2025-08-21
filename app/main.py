@@ -13,6 +13,66 @@ import json
 import time
 from typing import Dict, List
 
+import streamlit as st
+
+# === Particle Background Injection ===
+st.markdown(
+    """
+    <div id="particles-js"></div>
+    <style>
+    #particles-js {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        z-index: -1; /* stays behind everything */
+        background-color: #0d0d0d; /* fallback background */
+    }
+
+    /* Optional: smooth fade-in for content on top */
+    .main > div {
+        animation: fadeIn 1.2s ease-in;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script>
+    particlesJS("particles-js", {
+        "particles": {
+            "number": { "value": 100, "density": { "enable": true, "value_area": 800 } },
+            "color": { "value": "#ffffff" },
+            "shape": { "type": "circle" },
+            "opacity": { "value": 0.5, "random": false },
+            "size": { "value": 3, "random": true },
+            "line_linked": {
+                "enable": true,
+                "distance": 150,
+                "color": "#ffffff",
+                "opacity": 0.4,
+                "width": 1
+            },
+            "move": { "enable": true, "speed": 2, "direction": "none", "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": {
+                "onhover": { "enable": false },
+                "onclick": { "enable": false }
+            },
+            "modes": {}
+        },
+        "retina_detect": true
+    });
+    </script>
+    """,
+    unsafe_allow_html=True
+)
+
 # =============================
 # Config & Helpers (NEW)
 # =============================
@@ -185,55 +245,7 @@ if not st.session_state['player_name']:
 
 st.set_page_config(page_title="Stock Portfolio Game", layout="wide")
 
-# ================= Animated Background =================
 
-# Inject particles.js loader + container
-import streamlit as st
-
-# Add a full-page background div for particles
-st.markdown(
-    """
-    <div id="particles-js"></div>
-    <style>
-    #particles-js {
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        top: 0;
-        left: 0;
-        z-index: -1; /* push behind all elements */
-        background-color: #0d0d0d; /* fallback background */
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    """
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-    <script>
-    particlesJS("particles-js", {
-        "particles": {
-            "number": { "value": 80, "density": { "enable": true, "value_area": 800 } },
-            "color": { "value": "#ffffff" },
-            "shape": { "type": "circle" },
-            "opacity": { "value": 0.5, "random": false },
-            "size": { "value": 3, "random": true },
-            "line_linked": { "enable": true, "distance": 150, "color": "#ffffff", "opacity": 0.4, "width": 1 },
-            "move": { "enable": true, "speed": 2, "direction": "none", "out_mode": "out" }
-        },
-        "interactivity": {
-            "detect_on": "canvas",
-            "events": { "onhover": { "enable": false }, "onclick": { "enable": false } },
-            "modes": {}
-        },
-        "retina_detect": true
-    });
-    </script>
-    """,
-    unsafe_allow_html=True
-)
 import importlib
 import base64
 
