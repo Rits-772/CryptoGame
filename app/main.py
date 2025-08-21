@@ -17,7 +17,7 @@ from typing import Dict, List
 # Config & Helpers (NEW)
 # =============================
 PRICE_FILE = os.path.join("data", "prices.csv")
-REFRESH_HOURS = 12  # cache refresh twice a day
+REFRESH_HOURS = 6  # cache refresh twice a day
 REFRESH_INTERVAL = REFRESH_HOURS * 60 * 60
 
 # Simple emoji-based UI messages (replace raw warnings/infos)
@@ -204,39 +204,52 @@ st.markdown("""
 
 
 # ================= Animated Background =================
-particles_html = """
-<div id="particles-js"></div>
-<style>
-#particles-js {
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  z-index: -1;  /* send it to the very back */
-  top: 0;
-  left: 0;
-  pointer-events: none; /* make sure user can't click on it */
-}
-</style>
-<script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-<script>
-particlesJS("particles-js", {
-  "particles": {
-    "number": {"value": 60},
-    "size": {"value": 3},
-    "move": {"speed": 1},
-    "line_linked": {"enable": false},
-    "color": {"value": "#999999"}
-  },
-  "interactivity": {
-    "events": {
-      "onhover": {"enable": false}, /* disable interaction */
-      "onclick": {"enable": false}
-    }
-  }
-});
-</script>
-"""
-st.components.v1.html(particles_html, height=0, width=0)
+
+# Inject particles.js loader + container
+st.markdown(
+    """
+    <div id="particles-js"></div>
+    <style>
+        /* Make particles cover entire background */
+        #particles-js {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;  /* Keep it behind Streamlit content */
+        }
+    </style>
+
+    <!-- Load particles.js library -->
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+    <!-- Initialize particles -->
+    <script>
+    particlesJS("particles-js", {
+      "particles": {
+        "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+        "color": { "value": "#ffffff" },
+        "shape": {
+          "type": "circle",
+          "stroke": { "width": 0, "color": "#000000" },
+          "polygon": { "nb_sides": 5 }
+        },
+        "opacity": { "value": 0.5, "random": false },
+        "size": { "value": 3, "random": true },
+        "line_linked": { "enable": true, "distance": 150, "color": "#ffffff", "opacity": 0.4, "width": 1 },
+        "move": { "enable": true, "speed": 2, "direction": "none", "out_mode": "out" }
+      },
+      "interactivity": {
+        "detect_on": "canvas",
+        "events": { "onhover": { "enable": false }, "onclick": { "enable": false }, "resize": true }
+      },
+      "retina_detect": true
+    });
+    </script>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- Notifications (stateless, session only) ---
 if 'notifications' not in st.session_state:
