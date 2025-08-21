@@ -194,18 +194,18 @@ import base64
 # ================= Styling =================
 st.set_page_config(page_title="CryptoGame", page_icon="💹", layout="wide")
 
-# === Full-page CSS & Particles.js Injection ===
+# === Full-page CSS & Particles.js Injection (Most Resilient Version) ===
 st.markdown(
     """
     <div id="particles-js"></div>
     <style>
-        /* Target the main container of the app to fill the entire page */
-        .stApp {
-            height: 100vh;
-            width: 100vw;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
+        /* Target the root body element and force it to have the particle background */
+        body {
+            background-color: #0d0d0d;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3C/svg%3E");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
         }
         /* Target the particles div to position it correctly */
         #particles-js {
@@ -214,15 +214,17 @@ st.markdown(
             height: 100%;
             top: 0;
             left: 0;
-            z-index: -1; /* Puts the particles layer behind all content */
-            background-color: #0d0d0d;
+            z-index: -1;
+        }
+        /* Hide Streamlit's default background div that sits on top of the body */
+        [data-testid="stAppViewContainer"] > .main {
+            background-color: transparent;
         }
         /* Ensure all Streamlit content is on top of the particles */
-        .main > div {
-            z-index: 1;
-            position: relative;
+        [data-testid="stAppViewContainer"] {
+            background-color: transparent;
         }
-        .main {
+        .main > div {
             z-index: 1;
             position: relative;
         }
