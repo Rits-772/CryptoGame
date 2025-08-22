@@ -185,150 +185,6 @@ if not st.session_state['player_name']:
         st.rerun()
     st.stop()
 
-particles_js = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Particles.js</title>
-  <style>
-  #particles-js {
-    position: fixed;
-    width: 100vw;
-    height: 100vh;
-    top: 0;
-    left: 0;
-    z-index: -1; /* Send the animation to the back */
-  }
-  .content {
-    position: relative;
-    z-index: 1;
-    color: white;
-  }
-  
-</style>
-</head>
-<body>
-  <div id="particles-js"></div>
-  <div class="content">
-    <!-- Placeholder for Streamlit content -->
-  </div>
-  <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-  <script>
-    particlesJS("particles-js", {
-      "particles": {
-        "number": {
-          "value": 300,
-          "density": {
-            "enable": true,
-            "value_area": 800
-          }
-        },
-        "color": {
-          "value": "#ffffff"
-        },
-        "shape": {
-          "type": "circle",
-          "stroke": {
-            "width": 0,
-            "color": "#000000"
-          },
-          "polygon": {
-            "nb_sides": 5
-          },
-          "image": {
-            "src": "img/github.svg",
-            "width": 100,
-            "height": 100
-          }
-        },
-        "opacity": {
-          "value": 0.5,
-          "random": false,
-          "anim": {
-            "enable": false,
-            "speed": 1,
-            "opacity_min": 0.2,
-            "sync": false
-          }
-        },
-        "size": {
-          "value": 2,
-          "random": true,
-          "anim": {
-            "enable": false,
-            "speed": 40,
-            "size_min": 0.1,
-            "sync": false
-          }
-        },
-        "line_linked": {
-          "enable": true,
-          "distance": 100,
-          "color": "#ffffff",
-          "opacity": 0.22,
-          "width": 1
-        },
-        "move": {
-          "enable": true,
-          "speed": 0.2,
-          "direction": "none",
-          "random": false,
-          "straight": false,
-          "out_mode": "out",
-          "bounce": true,
-          "attract": {
-            "enable": false,
-            "rotateX": 600,
-            "rotateY": 1200
-          }
-        }
-      },
-      "interactivity": {
-        "detect_on": "canvas",
-        "events": {
-          "onhover": {
-            "enable": true,
-            "mode": "grab"
-          },
-          "onclick": {
-            "enable": true,
-            "mode": "repulse"
-          },
-          "resize": true
-        },
-        "modes": {
-          "grab": {
-            "distance": 100,
-            "line_linked": {
-              "opacity": 1
-            }
-          },
-          "bubble": {
-            "distance": 400,
-            "size": 2,
-            "duration": 2,
-            "opacity": 0.5,
-            "speed": 1
-          },
-          "repulse": {
-            "distance": 200,
-            "duration": 0.4
-          },
-          "push": {
-            "particles_nb": 2
-          },
-          "remove": {
-            "particles_nb": 3
-          }
-        }
-      },
-      "retina_detect": true
-    });
-  </script>
-</body>
-</html>
-"""
 
 import importlib
 import base64
@@ -336,75 +192,91 @@ import base64
 # ================= Styling =================
 st.set_page_config(page_title="CryptoGame", page_icon="💹", layout="wide")
 
-"""
+
 # === Full-page CSS & Particles.js Injection (Most Resilient Version) ===
-st.markdown(
-    """
-    <div id="particles-js"></div>
-    <style>
-        /* Target the root body element and force it to have the particle background */
-        body {
-            background-color: #0d0d0d;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3C/svg%3E");
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
+import streamlit as st
+import streamlit.components.v1 as components
+
+# Make Streamlit containers transparent so particles can show through
+st.markdown("""
+<style>
+/* Let the particles sit behind the app */
+.stApp { background: transparent !important; position: relative; z-index: 1; }
+[data-testid="stAppViewContainer"] { background: transparent !important; }
+header, [data-testid="stHeader"], [data-testid="stSidebar"] { background: transparent !important; }
+</style>
+""", unsafe_allow_html=True)
+
+# Hoist particles canvas + script into the parent (outside the iframe)
+components.html("""
+<script>
+(function () {
+  const PARENT = window.parent.document;
+
+  // 1) Add the host DIV once
+  if (!PARENT.getElementById('particles-js')) {
+    const host = PARENT.createElement('div');
+    host.id = 'particles-js';
+    host.style.position = 'fixed';
+    host.style.inset = '0';
+    host.style.zIndex = '0';          // behind app (which we set to z-index:1)
+    host.style.pointerEvents = 'none'; // don't block clicks
+    PARENT.body.appendChild(host);
+  }
+
+  // 2) Add minimal styles once
+  if (!PARENT.getElementById('particles-host-style')) {
+    const style = PARENT.createElement('style');
+    style.id = 'particles-host-style';
+    style.textContent = `
+      #particles-js canvas { display:block; }
+    `;
+    PARENT.head.appendChild(style);
+  }
+
+  // 3) Load particles.js once, then init (or re-init if already present)
+  function initParticles() {
+    window.parent.particlesJS('particles-js', {
+      "particles": {
+        "number": { "value": 300, "density": { "enable": true, "value_area": 800 } },
+        "color": { "value": "#ffffff" },
+        "shape": { "type": "circle" },
+        "opacity": { "value": 0.5, "random": false },
+        "size": { "value": 2, "random": true },
+        "line_linked": { "enable": true, "distance": 100, "color": "#ffffff", "opacity": 0.22, "width": 1 },
+        "move": { "enable": true, "speed": 0.2, "direction": "none", "straight": false, "out_mode": "out", "bounce": true }
+      },
+      "interactivity": {
+        "detect_on": "canvas",
+        "events": {
+          "onhover": { "enable": true, "mode": "grab" },
+          "onclick": { "enable": true, "mode": "repulse" },
+          "resize": true
+        },
+        "modes": {
+          "grab": { "distance": 100, "line_linked": { "opacity": 1 } },
+          "repulse": { "distance": 200, "duration": 0.4 }
         }
-        /* Target the particles div to position it correctly */
-        #particles-js {
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            z-index: -1;
-        }
-        /* Hide Streamlit's default background div that sits on top of the body */
-        [data-testid="stAppViewContainer"] > .main {
-            background-color: transparent;
-        }
-        /* Ensure all Streamlit content is on top of the particles */
-        [data-testid="stAppViewContainer"] {
-            background-color: transparent;
-        }
-        .main > div {
-            z-index: 1;
-            position: relative;
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-    <script>
-        particlesJS("particles-js", {
-            "particles": {
-                "number": { "value": 100, "density": { "enable": true, "value_area": 800 } },
-                "color": { "value": "#ffffff" },
-                "shape": { "type": "circle" },
-                "opacity": { "value": 0.5, "random": false },
-                "size": { "value": 3, "random": true },
-                "line_linked": {
-                    "enable": true,
-                    "distance": 150,
-                    "color": "#ffffff",
-                    "opacity": 0.4,
-                    "width": 1
-                },
-                "move": { "enable": true, "speed": 2, "direction": "none", "out_mode": "out" }
-            },
-            "interactivity": {
-                "detect_on": "canvas",
-                "events": {
-                    "onhover": { "enable": false },
-                    "onclick": { "enable": false }
-                },
-                "modes": {}
-            },
-            "retina_detect": true
-        });
-    </script>
-    """,
-    unsafe_allow_html=True
-)
-"""
+      },
+      "retina_detect": true
+    });
+  }
+
+  if (!window.parent.particlesJS) {
+    // load library once into the parent document
+    if (!PARENT.getElementById('particles-lib')) {
+      const s = PARENT.createElement('script');
+      s.id = 'particles-lib';
+      s.src = 'https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js';
+      s.onload = initParticles;
+      PARENT.head.appendChild(s);
+    }
+  } else {
+    initParticles();
+  }
+})();
+</script>
+""", height=0, scrolling=False)
 
 
 #particles_background()
