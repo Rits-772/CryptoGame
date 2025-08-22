@@ -514,6 +514,9 @@ if menu == "Home":
     # 💰 Display Current Balance (persistent per user)
     balance = st.session_state['balance']
 
+    if st.session_state.show_animation:
+         components.html(particles_js, height=370, scrolling=False)
+
     badge_id = active_rewards.get("badge")
     badge_name = None
     if badge_id:
@@ -1102,8 +1105,6 @@ if menu == "Learn":
         """
         )
 
-if st.session_state.show_animation:
-    components.html(particles_js, height=370, scrolling=False)
 
 
 
