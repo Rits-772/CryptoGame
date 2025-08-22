@@ -427,9 +427,6 @@ if 'notifications' not in st.session_state:
 if "show_animation" not in st.session_state:
     st.session_state.show_animation = True
 
-if st.session_state.show_animation:
-    components.html(particles_js, height=370, scrolling=False)
-
 
 def add_notification(msg, type_="info"):
     st.session_state['notifications'].append({
@@ -1104,6 +1101,11 @@ if menu == "Learn":
         - Stay updated on market news and trends
         """
         )
+
+if st.session_state.show_animation:
+    components.html(particles_js, height=370, scrolling=False)
+
+
 
 st.markdown("---")
 st.caption("Built with ❤️ by Ritvik's Trading Engine")
