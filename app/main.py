@@ -424,6 +424,11 @@ st.markdown("""
 # --- Notifications (stateless, session only) ---
 if 'notifications' not in st.session_state:
     st.session_state['notifications'] = []
+if "show_animation" not in st.session_state:
+    st.session_state.show_animation = True
+
+if st.session_state.show_animation:
+    components.html(particles_js, height=370, scrolling=False)
 
 
 def add_notification(msg, type_="info"):
