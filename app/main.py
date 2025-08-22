@@ -12,7 +12,7 @@ import store as store
 import json
 import time
 from typing import Dict, List
-from background import particles_background
+#from background import particles_background
 
 
 # =============================
@@ -199,7 +199,7 @@ import streamlit.components.v1 as components
 
 
 
-particles_background()
+#particles_background()
 
 st.markdown("""
     <style>
