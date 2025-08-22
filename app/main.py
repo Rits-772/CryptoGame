@@ -12,7 +12,7 @@ import store as store
 import json
 import time
 from typing import Dict, List
-#from background import particles_background
+from background import particles_background
 
 
 # =============================
@@ -197,6 +197,7 @@ st.set_page_config(page_title="CryptoGame", page_icon="💹", layout="wide")
 import streamlit as st
 import streamlit.components.v1 as components
 
+"""
 # Make Streamlit containers transparent so particles can show through
 st.markdown("""
 <style>
@@ -277,9 +278,9 @@ components.html("""
 })();
 </script>
 """, height=0, scrolling=False)
+"""
 
-
-#particles_background()
+particles_background()
 
 st.markdown("""
     <style>
