@@ -266,8 +266,7 @@ if menu == "Home":
         with st.dialog("👋 Welcome to CryptoGame! Tutorial"):
             st.markdown("### How to Play")
             st.write("Here’s a quick guide to get started...")
-            st.markdown("""
-        Welcome to CryptoGame! Here's a step-by-step guide to get you started:
+            st.markdown("""Welcome to CryptoGame! Here's a step-by-step guide to get you started:
 
         **Step 1: Enter Your Name**
         - On the welcome screen, enter your name to create your player profile.
