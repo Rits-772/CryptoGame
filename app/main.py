@@ -229,7 +229,7 @@ sidebar_icons = [
     ("🏆", "Achievements"),
     ("🛒", "Store"),
     ("📖", "Learn"),
-    #("📊", "Detailed Analysis")
+    ("📊", "Detailed Analysis")
 ]
 
 with st.sidebar:
@@ -698,21 +698,34 @@ elif menu == "Store":
 elif menu == "Detailed Analysis":
     st.markdown("## 📊 Portfolio Analytics")
     col1, col2 = st.columns(2)
+
+    # --- Portfolio Value Chart ---
     with col1:
         st.markdown("### 📈 Portfolio Value Over Time")
-        fig = pa.plot_portfolio_value_over_time(history_path=get_portfolio_history_path())
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            ui_msg("info", "Not enough data yet.")
+        try:
+            fig = pa.plot_portfolio_value_over_time(history_path=get_portfolio_history_path())
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                ui_msg("info", "Not enough data yet.")
+        except Exception as e:
+            ui_msg("warning", f"Unable to plot portfolio history: {e}")
+
+    # --- Asset Allocation Pie ---
     with col2:
         st.markdown("### 🧩 Asset Diversification")
-        df = pd.read_csv(get_portfolio_path())
-        pie = pa.plot_asset_allocation(df)
-        if pie:
-            st.plotly_chart(pie, use_container_width=True)
-        else:
-            ui_msg("info", "Portfolio is empty.")
+        try:
+            df = pd.read_csv(get_portfolio_path())
+            pie = pa.plot_asset_allocation(df)
+            if pie:
+                st.plotly_chart(pie, use_container_width=True)
+            else:
+                ui_msg("info", "Portfolio is empty.")
+        except FileNotFoundError:
+            df = pd.DataFrame()
+            ui_msg("info", "Portfolio not found yet.")
+
+    # --- Stock Analysis ---
     st.markdown("### 🔍 Select a Stock for Detailed Analysis")
     selected_symbol = st.selectbox(
         "Choose from your holdings",
@@ -726,12 +739,20 @@ elif menu == "Detailed Analysis":
             st.plotly_chart(chart, use_container_width=True)
         else:
             ui_msg("warning", "No data available for this stock.")
-        st.markdown(f"### ⚖️ Risk Metrics for {selected_symbol}")
-        metrics = pa.calculate_risk_metrics_filtered(df, selected_symbol)
-        st.metric("📊 Volatility", metrics["Volatility"])
-        st.metric("⚖️ Sharpe Ratio", metrics["Sharpe Ratio"])()
 
-        # --- Price Alert Section (with stock selection) ---
+        # --- Risk Metrics ---
+        st.markdown(f"### ⚖️ Risk Metrics for {selected_symbol}")
+        try:
+            metrics = pa.calculate_risk_metrics_filtered(df, selected_symbol)
+            if metrics:
+                st.metric("📊 Volatility", metrics.get("Volatility", "N/A"))
+                st.metric("⚖️ Sharpe Ratio", metrics.get("Sharpe Ratio", "N/A"))
+            else:
+                ui_msg("info", "Risk metrics unavailable.")
+        except Exception as e:
+            ui_msg("warning", f"Risk metric calculation failed: {e}")
+
+        # --- Price Alerts ---
         st.markdown("### 🔔 Set Price Alert")
         alert_symbol = st.selectbox(
             "Select stock for alert",
@@ -740,10 +761,16 @@ elif menu == "Detailed Analysis":
         )
         alert_direction = st.radio("Alert me when price...", ["goes above", "falls below"], key="alert_direction")
         alert_price = st.number_input("Alert price (INR)", min_value=1.0, step=1.0, key="detailed_alert_price")
+
         if st.button("Set Alert", key="detailed_set_alert"):
+            st.session_state['price_alert'] = {
+                "symbol": alert_symbol,
+                "direction": alert_direction,
+                "price": alert_price,
+            }
             ui_msg("success", f"Alert set for **{alert_symbol}** when price {alert_direction} ₹{alert_price:.2f}")
 
-        # Check for price alert trigger
+        # Check for trigger
         if 'price_alert' in st.session_state:
             alert = st.session_state['price_alert']
             try:
@@ -759,7 +786,7 @@ elif menu == "Detailed Analysis":
             except Exception:
                 pass
 
-        # --- Dividend & Split Section ---
+        # --- Dividends & Splits ---
         st.markdown("### 💸 Dividends & Splits")
         dividend_state_path = os.path.join("data", "dividend_state.json")
         today = datetime.date.today()
@@ -769,23 +796,23 @@ elif menu == "Detailed Analysis":
         else:
             dividend_state = {}
         last_div_month = dividend_state.get("last_month")
+
         if st.button("Collect Dividends", key="detailed_collect_dividends"):
             if last_div_month == f"{today.year}-{today.month:02d}":
-                ui_msg("info", "You have already collected dividends for this month.")
+                ui_msg("info", "You have already collected dividends this month.")
             else:
                 try:
                     portfolio_df = pd.read_csv(get_portfolio_path())
                     total_dividend = 0
-                    for idx, row in portfolio_df.iterrows():
+                    for _, row in portfolio_df.iterrows():
                         shares = row['Quantity']
                         ticker = yf.Ticker(row['Symbol'])
-                        dividends = ticker.dividends
+                        dividends = getattr(ticker, "dividends", pd.Series())
                         if not dividends.empty:
                             month_divs = dividends[dividends.index.to_period('M') == pd.Period(today, 'M')]
                             if not month_divs.empty:
                                 last_div = month_divs.iloc[-1]
-                                dividend = float(last_div) * float(shares)
-                                total_dividend += dividend
+                                total_dividend += float(last_div) * float(shares)
                     if total_dividend > 0:
                         st.session_state['balance'] += total_dividend
                         save_user_data(st.session_state['player_name'], st.session_state['balance'])
@@ -795,18 +822,20 @@ elif menu == "Detailed Analysis":
                         with open(dividend_state_path, "w") as f:
                             json.dump(dividend_state, f)
                     else:
-                        ui_msg("info", "No dividends available for your holdings this month.")
+                        ui_msg("info", "No dividends available this month.")
                 except Exception as e:
                     ui_msg("warning", f"Dividend collection failed: {e}")
+
         if st.button("Simulate 2-for-1 Stock Split", key="detailed_split"):
             try:
                 portfolio_df = pd.read_csv(get_portfolio_path())
-                portfolio_df['Quantity'] = portfolio_df['Quantity'] * 2
-                portfolio_df['Buy Price'] = portfolio_df['Buy Price'] / 2
+                portfolio_df['Quantity'] *= 2
+                portfolio_df['Buy Price'] /= 2
                 portfolio_df.to_csv(get_portfolio_path(), index=False)
                 st.toast("🔀 2-for-1 Stock Split applied to all holdings!")
             except Exception as e:
                 ui_msg("warning", f"Stock split simulation failed: {e}")
+
 
 # --- Educational Content Section ---
 if menu == "Learn":
