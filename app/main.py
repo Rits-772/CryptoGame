@@ -264,7 +264,7 @@ if menu == "Home":
     st.markdown("Trade stocks, track your portfolio and grow your virtual net worth")
     if st.session_state.get("is_new_player", False):
         with st.experimental_dialog("👋 Welcome to CryptoGame! Tutorial"):
-            st.markdown("### How to Play")
+            #st.markdown("### How to Play")
             st.write("Here’s a quick guide to get started:")
             st.markdown("""Welcome to CryptoGame! Here's a step-by-step guide to get you started:
 
