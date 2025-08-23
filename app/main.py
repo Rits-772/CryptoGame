@@ -265,23 +265,11 @@ if menu == "Home":
     
     
     if st.session_state.get("is_new_player", False):
-        with st.stylable_container(
-        key="custom_popover_button",
-        css_styles="""
-        button {
-            width: 200px;
-            height: 50px;
-            background-color: #f0f2f6;
-            color: black;
-            border-radius: 10px;
-        }
-        """
-        ):
-            with st.popover("Quick Tutorial", width=300):
+        with st.popover("Quick Tutorial", width=300):
         
-                st.markdown("### How to Play")
-                st.write("Here’s a quick guide to get started:")
-                st.markdown("""
+            st.markdown("### How to Play")
+            st.write("Here’s a quick guide to get started:")
+            st.markdown("""
             Welcome to CryptoGame! Here's a step-by-step guide to get you started:
 
             **Step 1: Enter Your Name**
