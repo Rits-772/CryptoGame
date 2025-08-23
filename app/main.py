@@ -265,7 +265,7 @@ if menu == "Home":
     
     
     if st.session_state.get("is_new_player", False):
-        with st.popover("Quick Tutorial", width=300):
+        with st.popover("Quick Tutorial"):
         
             st.markdown("### How to Play")
             st.write("Here’s a quick guide to get started:")
