@@ -791,8 +791,12 @@ elif menu == "Detailed Analysis":
         dividend_state_path = os.path.join("data", "dividend_state.json")
         today = datetime.date.today()
         if os.path.exists(dividend_state_path):
-            with open(dividend_state_path, "r") as f:
-                dividend_state = json.load(f)
+            try:
+                with open(dividend_state_path, "r") as f:
+                    content = f.read().strip()
+                    dividend_state = json.loads(content) if content else {}
+            except (json.JSONDecodeError, FileNotFoundError):
+                dividend_state = {}
         else:
             dividend_state = {}
         last_div_month = dividend_state.get("last_month")
