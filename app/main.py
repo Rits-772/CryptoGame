@@ -263,7 +263,7 @@ if menu == "Home":
     st.markdown(f"Welcome, {st.session_state['player_name']}! 👋")
     st.markdown("Trade stocks, track your portfolio and grow your virtual net worth")
     if st.session_state.get("is_new_player", False):
-        with st.modal("👋 Welcome to CryptoGame! Tutorial"):
+        with st.dialog("👋 Welcome to CryptoGame! Tutorial"):
             st.markdown("### How to Play")
             st.write("Here’s a quick guide to get started...")
             st.markdown("""
