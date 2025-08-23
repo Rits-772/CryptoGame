@@ -1,28 +1,39 @@
-0# --- CryptoGame Main App (Enhanced) ---
-from data_fetcher import getStockPrice
-import streamlit as st
-import pandas as pd
-import yfinance as yf
+# --- CryptoGame Main App (Enhanced, Fixed) ---
 import os
-import portfolio_analyzer as pa
-from game_logic import get_cash_balance, sell_stock, plot_with_indicators, update_cash_balance
-import datetime
-import achievements as achievements
-import store as store
 import json
 import time
+import base64
+import datetime
 from typing import Dict, List
-#from background import particles_background
 
+import pandas as pd
+import yfinance as yf
+import streamlit as st
+import streamlit.components.v1 as components
+
+# Local modules
+from data_fetcher import getStockPrice
+import portfolio_analyzer as pa
+from game_logic import get_cash_balance, sell_stock, plot_with_indicators, update_cash_balance
+import achievements as achievements
+import store as store
 
 # =============================
-# Config & Helpers (NEW)
+# Early config (must be the first Streamlit call)
+# =============================
+st.set_page_config(page_title="CryptoGame", page_icon="💹", layout="wide")
+
+# Ensure required folders exist
+os.makedirs("data", exist_ok=True)
+os.makedirs("gui", exist_ok=True)
+
+# =============================
+# Config & Helpers
 # =============================
 PRICE_FILE = os.path.join("data", "prices.csv")
 REFRESH_HOURS = 6  # cache refresh twice a day
 REFRESH_INTERVAL = REFRESH_HOURS * 60 * 60
 
-# Simple emoji-based UI messages (replace raw warnings/infos)
 EMOJI_PREFIX = {
     "info": "ℹ️ ",
     "success": "✅ ",
@@ -44,39 +55,32 @@ def normalize_close_df(close_obj, symbols: List[str]) -> pd.DataFrame:
     if isinstance(close_obj, pd.Series):
         df = close_obj.to_frame(name=symbols[0])
     else:
-        # Could be MultiIndex (ticker -> Close) or flat
         df = close_obj.copy()
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
-    # Keep only requested symbols that exist
     cols = [c for c in symbols if c in df.columns]
     return df[cols]
 
 
 def load_price_cache(symbols: List[str], period: str = "6mo") -> pd.DataFrame:
     """Load cached Close prices for symbols; refresh if older than REFRESH_INTERVAL."""
-    # If cache exists & fresh: load and return
     if os.path.exists(PRICE_FILE):
         try:
             modified_time = os.path.getmtime(PRICE_FILE)
             if time.time() - modified_time < REFRESH_INTERVAL:
                 cached = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
-                # ensure we only return requested symbols that are in cache
                 return cached[[c for c in symbols if c in cached.columns]]
         except Exception:
             pass
 
-    # Otherwise fetch fresh data (single batched call where possible)
     try:
         data = yf.download(symbols, period=period, auto_adjust=False, threads=True)
         close = data["Close"] if "Close" in data else data  # if single series
         df = normalize_close_df(close, symbols)
-        # Persist superset (merge with existing if present)
         if os.path.exists(PRICE_FILE):
             try:
                 old = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
                 df = old.combine_first(df).join(df, how="outer", rsuffix="_new")
-                # prefer newer columns without suffix
                 for col in list(df.columns):
                     if col.endswith("_new"):
                         base = col[:-4]
@@ -88,18 +92,16 @@ def load_price_cache(symbols: List[str], period: str = "6mo") -> pd.DataFrame:
         df.to_csv(PRICE_FILE)
         return df[[c for c in symbols if c in df.columns]]
     except Exception:
-        # final fallback: if cache exists, return whatever we have
         if os.path.exists(PRICE_FILE):
             try:
                 cached = pd.read_csv(PRICE_FILE, index_col=0, parse_dates=True)
                 return cached[[c for c in symbols if c in cached.columns]]
             except Exception:
                 pass
-        # nothing
         return pd.DataFrame()
 
 
-def latest_price_from_cache(symbol: str, prices_df: pd.DataFrame) -> float:
+def latest_price_from_cache(symbol: str, prices_df: pd.DataFrame) -> float | None:
     try:
         if symbol in prices_df.columns and not prices_df[symbol].dropna().empty:
             return float(prices_df[symbol].dropna().iloc[-1])
@@ -107,8 +109,6 @@ def latest_price_from_cache(symbol: str, prices_df: pd.DataFrame) -> float:
         pass
     return None
 
-
-# Optional: lightweight logo fetch helper (best-effort)
 SYMBOL_TO_DOMAIN = {
     # US Tech
     "AAPL": "apple.com", "GOOGL": "abc.xyz", "AMZN": "amazon.com", "MSFT": "microsoft.com",
@@ -124,8 +124,7 @@ SYMBOL_TO_DOMAIN = {
 }
 
 @st.cache_data(ttl=6*60*60)
-def logo_url_for(symbol: str) -> str:
-    # First try yfinance info (may be missing)
+def logo_url_for(symbol: str) -> str | None:
     try:
         info = yf.Ticker(symbol).info
         if isinstance(info, dict):
@@ -134,12 +133,10 @@ def logo_url_for(symbol: str) -> str:
                 return logo
     except Exception:
         pass
-    # Fallback to Clearbit (will 404 for unknown domains; Streamlit will ignore)
     domain = SYMBOL_TO_DOMAIN.get(symbol)
     if domain:
         return f"https://logo.clearbit.com/{domain}"
     return None
-
 
 # --- User Login & Persistent Balance ---
 USER_DATA_FILE = os.path.join("data", "users.csv")
@@ -164,7 +161,6 @@ def save_user_data(name, balance):
         df = pd.DataFrame([{'name': name, 'balance': balance}])
     df.to_csv(USER_DATA_FILE, index=False)
 
-
 if 'player_name' not in st.session_state:
     st.session_state['player_name'] = ""
 if 'balance' not in st.session_state:
@@ -182,36 +178,23 @@ if not st.session_state['player_name']:
         else:
             st.session_state['balance'] = 10000
             save_user_data(name, 10000)
+            st.session_state['is_new_player'] =True 
         st.rerun()
     st.stop()
 
-
-import importlib
-import base64
-
-# ================= Styling =================
-st.set_page_config(page_title="CryptoGame", page_icon="💹", layout="wide")
-
-
-# === Full-page CSS & Particles.js Injection (Most Resilient Version) ===
-import streamlit as st
-import streamlit.components.v1 as components
-
-
-
-#particles_background()
-
-st.markdown("""
+# === Full-page CSS tweaks ===
+st.markdown(
+    """
     <style>
-    /* Force Streamlit sidebar toggle button to always show */
     [data-testid="collapsedControl"] {
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
     }
     </style>
-""", unsafe_allow_html=True)
-
+    """,
+    unsafe_allow_html=True,
+)
 
 # --- Notifications (stateless, session only) ---
 if 'notifications' not in st.session_state:
@@ -224,9 +207,11 @@ def add_notification(msg, type_="info"):
         'time': str(datetime.datetime.now())
     })
 
-# --- Load Sidebar GUI from gui/ folder ---
-with open(os.path.join("gui", "sidebar.css"), encoding="utf-8") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+# --- Load Sidebar GUI from gui/ folder (optional) ---
+sidebar_css_path = os.path.join("gui", "sidebar.css")
+if os.path.exists(sidebar_css_path):
+    with open(sidebar_css_path, encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 available_stocks = [
     # US Tech
@@ -277,6 +262,59 @@ if menu == "Home":
     st.title("Stock Game - Virtual Trader 📈")
     st.markdown(f"Welcome, {st.session_state['player_name']}! 👋")
     st.markdown("Trade stocks, track your portfolio and grow your virtual net worth")
+    if st.session_state.get("is_new_player", False):
+    with st.modal("👋 Welcome to CryptoGame! Tutorial"):
+        st.markdown("### How to Play")
+        st.write("Here’s a quick guide to get started...")
+        st.markdown("""
+        Welcome to CryptoGame! Here's a step-by-step guide to get you started:
+
+        **Step 1: Enter Your Name**
+        - On the welcome screen, enter your name to create your player profile.
+        - Your cash balance and progress will be saved for future sessions.
+
+        **Step 2: Explore Available Stocks**
+        - Browse the list of stocks from US and Indian markets.
+        - View current prices and company logos for each stock.
+
+        **Step 3: Buy Stocks**
+        - Select a stock and enter the quantity you want to buy.
+        - Review the transaction fee and total cost.
+        - Confirm your purchase. Your cash balance will be updated, and the stock will be added to your portfolio.
+
+        **Step 4: View and Manage Your Portfolio**
+        - See all your holdings, including quantity, buy price, current price, and profit/loss.
+        - Track your portfolio value and performance.
+
+        **Step 5: Sell Stocks**
+        - Select a stock from your portfolio and enter the quantity to sell.
+        - Confirm the sale. Your cash balance will increase, minus transaction fees.
+
+        **Step 6: Earn Achievements**
+        - Unlock achievements by trading, growing your portfolio, and reaching milestones.
+        - View your achievements and total points in the Achievements section.
+
+        **Step 7: Redeem Rewards in the Store**
+        - Use your points to redeem cash, badges, boosts, analytics tools, and themes.
+        - Activate boosts for special advantages (e.g., no transaction fees, double profit).
+
+        **Step 8: Analyze Your Portfolio**
+        - Use the Detailed Analysis section to view portfolio value over time, asset allocation, and risk metrics.
+        - Set price alerts and simulate dividends or stock splits.
+
+        **Step 9: Learn and Improve**
+        - Read educational content to understand key concepts like diversification, volatility, and risk management.
+        - Apply these strategies to grow your virtual wealth.
+
+        **Step 10: Compete and Have Fun!**
+        - Try to maximize your portfolio value and achievements.
+        - Experiment with different strategies and boosts.
+        - Enjoy learning about trading in a risk-free environment!
+
+        _Ready to play? Head to the Home section and start trading!_
+        """)
+    # Reset flag so it doesn’t show every run
+    st.session_state['is_new_player'] = False
 
     # --- Apply active theme (if any) ---
     active_rewards = store.get_active_rewards(st.session_state['player_name'])
@@ -303,7 +341,7 @@ if menu == "Home":
     # 💰 Display Current Balance (persistent per user)
     balance = st.session_state['balance']
 
-    
+
 
     badge_id = active_rewards.get("badge")
     badge_name = None
@@ -340,7 +378,7 @@ if menu == "Home":
             row_cols[2].image(logo_url, width=32)
         else:
             row_cols[2].write("")
-    
+
     st.subheader("📊 Stock Price Comparison")
     selected_stocks = st.multiselect(
         "Choose stocks to plot (log scale recommended for large price differences):",
@@ -398,7 +436,7 @@ if menu == "Home":
             fee = total_cost * TRANSACTION_FEE_RATE
             ui_msg("info", f"Transaction Fee: ₹{fee:.2f} ({'0%' if TRANSACTION_FEE_RATE == 0 else '0.5%'})")
             ui_msg("info", f"Total Cost (incl. fee): ₹{total_cost + fee:,.2f}")
-            
+
         if st.button("Confirm purchase"):
             if price and (total_cost + fee) <= st.session_state['balance']:
                 # Deduct cost and fee from balance
