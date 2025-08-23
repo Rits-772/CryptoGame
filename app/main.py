@@ -265,7 +265,7 @@ if menu == "Home":
     
     
     if st.session_state.get("is_new_player", False):
-            with st.stylable_container(
+        with st.stylable_container(
         key="custom_popover_button",
         css_styles="""
         button {
