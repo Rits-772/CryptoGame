@@ -6,4 +6,4 @@ matplotlib
 requests
 groq
 plotly
-streamlit == 1.32
+streamlit 
