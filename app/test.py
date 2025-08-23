@@ -178,6 +178,7 @@ if not st.session_state['player_name']:
         else:
             st.session_state['balance'] = 10000
             save_user_data(name, 10000)
+            st.session_state['is_new_player'] =True 
         st.rerun()
     st.stop()
 
@@ -261,6 +262,59 @@ if menu == "Home":
     st.title("Stock Game - Virtual Trader 📈")
     st.markdown(f"Welcome, {st.session_state['player_name']}! 👋")
     st.markdown("Trade stocks, track your portfolio and grow your virtual net worth")
+    if st.session_state.get("is_new_player", False):
+    with st.modal("👋 Welcome to CryptoGame! Tutorial"):
+        st.markdown("### How to Play")
+        st.write("Here’s a quick guide to get started...")
+        st.markdown("""
+        Welcome to CryptoGame! Here's a step-by-step guide to get you started:
+
+        **Step 1: Enter Your Name**
+        - On the welcome screen, enter your name to create your player profile.
+        - Your cash balance and progress will be saved for future sessions.
+
+        **Step 2: Explore Available Stocks**
+        - Browse the list of stocks from US and Indian markets.
+        - View current prices and company logos for each stock.
+
+        **Step 3: Buy Stocks**
+        - Select a stock and enter the quantity you want to buy.
+        - Review the transaction fee and total cost.
+        - Confirm your purchase. Your cash balance will be updated, and the stock will be added to your portfolio.
+
+        **Step 4: View and Manage Your Portfolio**
+        - See all your holdings, including quantity, buy price, current price, and profit/loss.
+        - Track your portfolio value and performance.
+
+        **Step 5: Sell Stocks**
+        - Select a stock from your portfolio and enter the quantity to sell.
+        - Confirm the sale. Your cash balance will increase, minus transaction fees.
+
+        **Step 6: Earn Achievements**
+        - Unlock achievements by trading, growing your portfolio, and reaching milestones.
+        - View your achievements and total points in the Achievements section.
+
+        **Step 7: Redeem Rewards in the Store**
+        - Use your points to redeem cash, badges, boosts, analytics tools, and themes.
+        - Activate boosts for special advantages (e.g., no transaction fees, double profit).
+
+        **Step 8: Analyze Your Portfolio**
+        - Use the Detailed Analysis section to view portfolio value over time, asset allocation, and risk metrics.
+        - Set price alerts and simulate dividends or stock splits.
+
+        **Step 9: Learn and Improve**
+        - Read educational content to understand key concepts like diversification, volatility, and risk management.
+        - Apply these strategies to grow your virtual wealth.
+
+        **Step 10: Compete and Have Fun!**
+        - Try to maximize your portfolio value and achievements.
+        - Experiment with different strategies and boosts.
+        - Enjoy learning about trading in a risk-free environment!
+
+        _Ready to play? Head to the Home section and start trading!_
+        """)
+    # Reset flag so it doesn’t show every run
+    st.session_state['is_new_player'] = False
 
     # --- Apply active theme (if any) ---
     active_rewards = store.get_active_rewards(st.session_state['player_name'])
