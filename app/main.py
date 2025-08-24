@@ -165,6 +165,23 @@ if 'player_name' not in st.session_state:
     st.session_state['player_name'] = ""
 if 'balance' not in st.session_state:
     st.session_state['balance'] = None
+if "is_mobile" not in st.session_state:
+    st.session_state["is_mobile"] = False
+
+# Detect mobile via viewport width
+components.html(
+    """
+    <script>
+    const width = window.innerWidth;
+    if (width < 768) {
+        window.parent.postMessage({streamlitMessage: {is_mobile: true}}, "*");
+    } else {
+        window.parent.postMessage({streamlitMessage: {is_mobile: false}}, "*");
+    }
+    </script>
+    """,
+    height=0,
+)
 
 if not st.session_state['player_name']:
     st.title("Welcome to CryptoGame!")
@@ -440,33 +457,59 @@ if menu == "Home":
             st.sidebar.markdown(f"🏅 **{badge_name}**")
     st.metric(label="💰 Available Cash", value=f"₹{balance:,.2f}")
 
-    # ------- Market Watch Section -------
     st.subheader("📃 Available Stocks")
-    header_cols = st.columns([2, 1, 1])
-    header_cols[0].write("**Stock**")
-    header_cols[1].write("**Price (₹)**")
-    header_cols[2].write("**Logo**")
 
-    for symbol in available_stocks:
-        price = latest_price_from_cache(symbol, prices_df)
-        if price is None:
+    if st.session_state.get("is_mobile", False):
+        # --- Mobile view (Card layout) ---
+        for symbol in available_stocks:
+            price = latest_price_from_cache(symbol, prices_df)
+            if price is None:
+                try:
+                    price = getStockPrice(symbol)
+                except Exception:
+                    price = None
             try:
-                price = getStockPrice(symbol)
+                logo_url = logo_url_for(symbol)
             except Exception:
-                price = None
-        logo_url = None
-        try:
-            logo_url = logo_url_for(symbol)
-        except Exception:
-            logo_url = None
-        row_cols = st.columns([2, 1, 1])
-        row_cols[0].write(symbol)
-        row_cols[1].write(f"₹{price:.2f}" if price is not None else "N/A")
-        if logo_url:
-            row_cols[2].image(logo_url, width=32)
-        else:
-            row_cols[2].write("")
-
+                logo_url = None
+    
+            st.markdown(
+                f"""
+                <div style="border:1px solid #ddd; border-radius:10px; padding:10px; margin-bottom:10px;">
+                    <b>{symbol}</b><br>
+                    💰 Price: {f"₹{price:.2f}" if price is not None else "N/A"}<br>
+                    {"<img src='"+logo_url+"' width='40'>" if logo_url else ""}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    
+    else:
+        # --- Desktop view (your existing columns) ---
+        header_cols = st.columns([2, 1, 1])
+        header_cols[0].write("**Stock**")
+        header_cols[1].write("**Price (₹)**")
+        header_cols[2].write("**Logo**")
+    
+        for symbol in available_stocks:
+            price = latest_price_from_cache(symbol, prices_df)
+            if price is None:
+                try:
+                    price = getStockPrice(symbol)
+                except Exception:
+                    price = None
+            try:
+                logo_url = logo_url_for(symbol)
+            except Exception:
+                logo_url = None
+            row_cols = st.columns([2, 1, 1])
+            row_cols[0].write(symbol)
+            row_cols[1].write(f"₹{price:.2f}" if price is not None else "N/A")
+            if logo_url:
+                row_cols[2].image(logo_url, width=32)
+            else:
+                row_cols[2].write("")
+    
     st.subheader("📊 Stock Price Comparison")
     selected_stocks = st.multiselect(
         "Choose stocks to plot (log scale recommended for large price differences):",
