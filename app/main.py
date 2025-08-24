@@ -228,29 +228,46 @@ with st.sidebar:
     # --- Header / Profile Section ---
     st.markdown("## 📊 CryptoGame Dashboard")
 
-    # Profile Picture
-    if "profile_pic" not in st.session_state:
-        st.session_state["profile_pic"] = None
-
-    uploaded_pic = st.file_uploader("Upload Profile Picture", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
-    if uploaded_pic is not None:
-        st.session_state["profile_pic"] = uploaded_pic
-
-    if st.session_state["profile_pic"]:
-        st.image(st.session_state["profile_pic"], width=120, caption=st.session_state['player_name'])
+    # Profile Picture (display only)
+    if st.session_state.get("profile_pic"):
+        st.markdown(
+            f"""
+            <div style="text-align:center;">
+                <img src="data:image/png;base64,{base64.b64encode(st.session_state['profile_pic'].getvalue()).decode()}" 
+                     style="width:120px; border-radius:50%;" />
+                <p><b>{st.session_state['player_name']}</b></p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
-        st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=120, caption=st.session_state['player_name'])
+        st.markdown(
+            f"""
+            <div style="text-align:center;">
+                <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" 
+                     style="width:120px;" />
+                <p><b>{st.session_state['player_name']}</b></p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    # Balance
-    st.markdown(f"### 💰 Balance: ₹{st.session_state.get('balance', 0):,.2f}")
+    # Balance centered
+    st.markdown(
+        f"""
+        <div style="text-align:center; font-size:18px; font-weight:bold; margin-top:10px;">
+            💰 ₹{st.session_state.get('balance', 0):,.2f}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
 
-    # --- Menu (your existing buttons, unchanged style) ---
-    st.markdown('<div class="sidebar-title">✨ CryptoGame Menu</div>', unsafe_allow_html=True)
+    # --- Menu (buttons as before) ---
+    st.markdown("### ✨ CryptoGame Menu")
     sidebar_icons = [
         ("🏠", "Home"),
-        ("📊","Portfolio"),
         ("📊", "Detailed Analysis"),
         ("🏆", "Achievements"),
         ("🛒", "Store"),
@@ -284,16 +301,20 @@ with st.sidebar:
                 st.success(f"✅ Username updated to {new_name.strip()}")
                 st.rerun()
 
+        # Change Profile Picture (moved here)
+        uploaded_pic = st.file_uploader("Upload Profile Picture", type=["png", "jpg", "jpeg"])
+        if uploaded_pic:
+            st.session_state["profile_pic"] = uploaded_pic
+            st.rerun()
+        if st.button("Remove Profile Picture"):
+            st.session_state["profile_pic"] = None
+            st.rerun()
+
         # Theme Selector
         theme = st.selectbox("🎨 Theme", ["Light", "Dark", "System Default"])
 
         # Sound Effects Toggle
         sound = st.checkbox("🔊 Enable Sound Effects", value=True)
-
-        # Reset Profile Picture
-        if st.button("Remove Profile Picture"):
-            st.session_state["profile_pic"] = None
-            st.rerun()
 
     # --- Logout Button ---
     if st.button("🚪 Logout"):
