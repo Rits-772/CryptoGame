@@ -228,7 +228,7 @@ with st.sidebar:
     # --- Header / Profile Section ---
     st.markdown(
     """
-    <div style="text-align:center; font-size:24px; font-weight:bold;">
+    <div style="text-align:center; font-size:28px; font-weight:bold;">
         📊 Dashboard
     </div>
     """,
