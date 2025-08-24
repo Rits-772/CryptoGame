@@ -226,7 +226,14 @@ available_stocks = [
 
 with st.sidebar:
     # --- Header / Profile Section ---
-    st.markdown("""<div style="text-align:center;"> 📊 CryptoGame Dashboard </div>""", unsafe_allow_html=True,)
+    st.markdown(
+    """
+    <div style="text-align:center; font-size:24px; font-weight:bold;">
+        📊 CryptoGame Dashboard
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
     # Profile Picture (display only)
     if st.session_state.get("profile_pic"):
