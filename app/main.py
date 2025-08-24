@@ -224,25 +224,82 @@ available_stocks = [
     "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS", "LT.NS", "ITC.NS", "BAJFINANCE.NS", "SUNPHARMA.NS", "MARUTI.NS", "TITAN.NS", "ONGC.NS", "HCLTECH.NS", "ULTRACEMCO.NS", "ASIANPAINTS.NS"
 ]
 
-sidebar_icons = [
-    ("🏠", "Home"),
-    ("🏆", "Achievements"),
-    ("🛒", "Store"),
-    ("📖", "Learn"),
-    ("📊", "Detailed Analysis")
-]
-
 with st.sidebar:
+    # --- Header / Profile Section ---
+    st.markdown("## 📊 CryptoGame Dashboard")
+
+    # Profile Picture
+    if "profile_pic" not in st.session_state:
+        st.session_state["profile_pic"] = None
+
+    uploaded_pic = st.file_uploader("Upload Profile Picture", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+    if uploaded_pic is not None:
+        st.session_state["profile_pic"] = uploaded_pic
+
+    if st.session_state["profile_pic"]:
+        st.image(st.session_state["profile_pic"], width=120, caption=st.session_state['player_name'])
+    else:
+        st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=120, caption=st.session_state['player_name'])
+
+    # Balance
+    st.markdown(f"### 💰 Balance: ₹{st.session_state.get('balance', 0):,.2f}")
+
+    st.markdown("---")
+
+    # --- Navigation (same as before, but cleaner) ---
     st.markdown('<div class="sidebar-title">✨ CryptoGame Menu</div>', unsafe_allow_html=True)
+    sidebar_icons = [
+        ("🏠", "Home"),
+        ("💼", "Portfolio"),
+        ("📊", "Detailed Analysis"),
+        ("🏆", "Achievements"),
+        ("🛒", "Store"),
+        ("📖", "Learn"),
+    ]
     for icon, label in sidebar_icons:
         btn_key = f"sidebar_{label}"
         if st.button(f"{icon} {label}", key=btn_key):
             st.session_state['sidebar_nav'] = label
 
-if 'sidebar_nav' not in st.session_state:
-    st.session_state['sidebar_nav'] = 'Home'
-menu = st.session_state['sidebar_nav']
+    if 'sidebar_nav' not in st.session_state:
+        st.session_state['sidebar_nav'] = 'Home'
+    menu = st.session_state['sidebar_nav']
 
+    st.markdown("---")
+
+    # --- Settings Section ---
+    with st.expander("⚙️ Settings", expanded=False):
+        # Change Username
+        new_name = st.text_input("Change Username", value=st.session_state.get("player_name", ""))
+        if st.button("Update Username"):
+            if new_name.strip():
+                old_name = st.session_state['player_name']
+                st.session_state['player_name'] = new_name.strip()
+                # Update CSV
+                if os.path.exists("users.csv"):
+                    users = pd.read_csv("users.csv")
+                    if old_name in users['Name'].values:
+                        users.loc[users['Name'] == old_name, 'Name'] = new_name.strip()
+                        users.to_csv("users.csv", index=False)
+                st.success(f"✅ Username updated to {new_name.strip()}")
+                st.rerun()
+
+        # Theme Selector
+        theme = st.selectbox("🎨 Theme", ["Light", "Dark", "System Default"])
+
+        # Sound Effects Toggle
+        sound = st.checkbox("🔊 Enable Sound Effects", value=True)
+
+        # Reset Profile Picture
+        if st.button("Remove Profile Picture"):
+            st.session_state["profile_pic"] = None
+            st.rerun()
+
+    # --- Logout Button ---
+    if st.button("🚪 Logout"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 
 # --- Per-user portfolio and history paths ---
 
