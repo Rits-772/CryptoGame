@@ -246,11 +246,10 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- Navigation (same as before, but cleaner) ---
+    # --- Menu (your existing buttons, unchanged style) ---
     st.markdown('<div class="sidebar-title">✨ CryptoGame Menu</div>', unsafe_allow_html=True)
     sidebar_icons = [
         ("🏠", "Home"),
-        ("💼", "Portfolio"),
         ("📊", "Detailed Analysis"),
         ("🏆", "Achievements"),
         ("🛒", "Store"),
