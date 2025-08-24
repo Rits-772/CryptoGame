@@ -208,10 +208,10 @@ def add_notification(msg, type_="info"):
     })
 
 # --- Load Sidebar GUI from gui/ folder (optional) ---
-sidebar_css_path = os.path.join("gui", "sidebar.css")
-if os.path.exists(sidebar_css_path):
-    with open(sidebar_css_path, encoding="utf-8") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+#sidebar_css_path = os.path.join("gui", "sidebar.css")
+#if os.path.exists(sidebar_css_path):
+#    with open(sidebar_css_path, encoding="utf-8") as f:
+#        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 available_stocks = [
     # US Tech
