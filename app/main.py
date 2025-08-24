@@ -169,7 +169,7 @@ if 'balance' not in st.session_state:
     
 # --- Detect if mobile or desktop ---
 
-width = st_javascript("window.innerWidth")
+width = st_javascript.eval_js("window.innerWidth")
 
 if width and width < 768:
     st.session_state["is_mobile"] = True
