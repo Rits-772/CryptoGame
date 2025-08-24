@@ -459,18 +459,17 @@ if menu == "Home":
 
     st.subheader("📃 Available Stocks")
 
-
-    # --- Add responsive CSS ---
+    # --- Responsive CSS ---
     st.markdown(
         """
         <style>
         @media (max-width: 768px) {
-            .desktop-only {display: none;}
-            .mobile-only {display: block;}
+            .desktop-only {display: none !important;}
+            .mobile-only {display: block !important;}
         }
         @media (min-width: 769px) {
-            .desktop-only {display: block;}
-            .mobile-only {display: none;}
+            .desktop-only {display: block !important;}
+            .mobile-only {display: none !important;}
         }
         </style>
         """,
@@ -479,6 +478,7 @@ if menu == "Home":
     
     # --- Desktop layout ---
     st.markdown('<div class="desktop-only">', unsafe_allow_html=True)
+    st.write("### Desktop View")
     header_cols = st.columns([2, 1, 1])
     header_cols[0].write("**Stock**")
     header_cols[1].write("**Price (₹)**")
@@ -507,6 +507,7 @@ if menu == "Home":
     
     # --- Mobile layout ---
     st.markdown('<div class="mobile-only">', unsafe_allow_html=True)
+    st.write("### Mobile View")
     for symbol in available_stocks:
         price = latest_price_from_cache(symbol, prices_df)
         if price is None:
@@ -530,6 +531,7 @@ if menu == "Home":
             unsafe_allow_html=True,
         )
     st.markdown('</div>', unsafe_allow_html=True)
+    
         
     st.subheader("📊 Stock Price Comparison")
     selected_stocks = st.multiselect(
