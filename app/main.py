@@ -226,7 +226,7 @@ available_stocks = [
 
 with st.sidebar:
     # --- Header / Profile Section ---
-    st.markdown("## 📊 CryptoGame Dashboard")
+    st.markdown("""<div style="text-align:center;"> 📊 CryptoGame Dashboard </div>""", unsafe_allow_html=True,)
 
     # Profile Picture (display only)
     if st.session_state.get("profile_pic"):
@@ -265,7 +265,7 @@ with st.sidebar:
     st.markdown("---")
 
     # --- Menu (buttons as before) ---
-    st.markdown("### ✨ CryptoGame Menu")
+    
     sidebar_icons = [
         ("🏠", "Home"),
         ("📊", "Detailed Analysis"),
