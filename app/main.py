@@ -229,7 +229,7 @@ with st.sidebar:
     st.markdown(
     """
     <div style="text-align:center; font-size:24px; font-weight:bold;">
-        📊 CryptoGame Dashboard
+        📊 Dashboard
     </div>
     """,
     unsafe_allow_html=True,
