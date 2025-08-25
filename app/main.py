@@ -308,7 +308,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- Settings Section ---
+        # --- Settings Section ---
     with st.expander("⚙️ Settings", expanded=False):
         # Change Username
         new_name = st.text_input("Change Username", value=st.session_state.get("player_name", ""))
@@ -325,7 +325,7 @@ with st.sidebar:
                 st.success(f"✅ Username updated to {new_name.strip()}")
                 st.rerun()
 
-        # Change Profile Picture (moved here)
+        # Change Profile Picture (upload/remove)
         uploaded_pic = st.file_uploader("Upload Profile Picture", type=["png", "jpg", "jpeg"])
         if uploaded_pic:
             st.session_state["profile_pic"] = uploaded_pic
@@ -334,16 +334,26 @@ with st.sidebar:
             st.session_state["profile_pic"] = None
             st.rerun()
 
-        # Theme Selector
-        theme = st.selectbox("🎨 Theme", ["Light", "Dark", "System Default"])
-
         # Sound Effects Toggle
         sound = st.checkbox("🔊 Enable Sound Effects", value=True)
 
-    # --- Logout Button ---
+    # --- Future Roadmap Section ---
+    with st.expander("🚀 Future Roadmap", expanded=False):
+        st.markdown("""
+        Here’s what’s coming soon to CryptoGame:
+
+        - 📰 **Events & News System**: Market-moving headlines & random events.
+        - 🏆 **Expanded Achievements**: More badges, milestones, and surprises.
+        - 📈 **Simulation Features**: IPO launches, bankruptcies, AI competitors.
+        - 🌐 **Mobile-Friendly Interface**: Seamless UI for handheld devices.
+        - 🥇 **Leaderboards & Multiplayer**: Compete with friends globally.
+        - 🤖 **AI Trading Advisor**: Smart suggestions to guide your moves.
+        - 📱 **Social Sharing**: Share achievements & invite friends.
+        """)
+
+    # --- Logout Section ---
     if st.button("🚪 Logout"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        st.session_state.clear()
         st.rerun()
 
 # --- Per-user portfolio and history paths ---
