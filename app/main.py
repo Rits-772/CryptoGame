@@ -339,8 +339,7 @@ with st.sidebar:
 
     # --- Future Roadmap Section ---
     with st.expander("🚀 Future Roadmap", expanded=False):
-        st.markdown("""
-        Here’s what’s coming soon to CryptoGame:
+        st.markdown("""Here’s what’s coming soon to CryptoGame:
 
         - 📰 **Events & News System**: Market-moving headlines & random events.
         - 🏆 **Expanded Achievements**: More badges, milestones, and surprises.
@@ -349,12 +348,13 @@ with st.sidebar:
         - 🥇 **Leaderboards & Multiplayer**: Compete with friends globally.
         - 🤖 **AI Trading Advisor**: Smart suggestions to guide your moves.
         - 📱 **Social Sharing**: Share achievements & invite friends.
+        
         """)
 
     # --- Logout Section ---
     if st.button("🚪 Logout"):
         st.session_state.clear()
-        st.rerun()
+    st.rerun()
 
 # --- Per-user portfolio and history paths ---
 
