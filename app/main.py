@@ -352,9 +352,9 @@ with st.sidebar:
         """)
 
     # --- Logout Section ---
-    if st.button("🚪 Logout"):
-        st.session_state.clear()
-    st.rerun()
+    #if st.button("🚪 Logout"):
+     #   st.session_state.clear()
+    #st.rerun()
 
 # --- Per-user portfolio and history paths ---
 
