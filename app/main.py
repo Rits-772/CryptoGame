@@ -14,7 +14,10 @@ import streamlit.components.v1 as components
 # Local modules
 from data_fetcher import getStockPrice
 import portfolio_analyzer as pa
-from game_logic import get_cash_balance, sell_stock, plot_with_indicators, update_cash_balance
+# main.py
+from game_logic import get_cash_balance, sell_stock, plot_with_indicators
+import test
+
 import achievements as achievements
 import store as store
 
