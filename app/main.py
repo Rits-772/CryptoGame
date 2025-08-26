@@ -711,7 +711,7 @@ if menu == "Home":
     sell_symbol = st.selectbox("Select a stock to sell", portfolio["Symbol"].unique() if not portfolio.empty else [])
     sell_qty = st.number_input("Quantity to sell", min_value=1, step=1)
     if st.button("Sell") and not portfolio.empty:
-        success, message = sell_stock(sell_symbol, sell_qty)
+        success, message = sell_stock(st.session_state['player_name'], sell_symbol, sell_qty)
         if success:
             try:
                 sell_price = latest_price_from_cache(sell_symbol, prices_df)
