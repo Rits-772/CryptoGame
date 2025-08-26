@@ -6,7 +6,8 @@ import os
 from datetime import datetime
 
 # Import balance functions from main app
-from main import load_user_data, save_user_data
+from test import load_user_data, save_user_data
+
 
 STARTING_BALANCE = 10000  # ₹10,000
 
